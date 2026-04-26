@@ -35,12 +35,12 @@ One row per **(locale, canonical word)**. This replaces the old SQLite `words` t
 | `display_word` | `VARCHAR(255)` nullable | Optional casing / presentation. |
 | `difficulty_level` | `INTEGER` nullable | 1–10 style scale for AI and UI. |
 | `definition` | `TEXT` nullable | Short gloss for hints. |
-| **`extensions`** | **`JSONB`** | **Primary extension point.** Default `{}`. Intended keys (evolve as needed): |
-| | | • `pronunciation` — e.g. IPA string, audio URL, or `{ "ipa": "...", "audio_url": "..." }` |
-| | | • `spelling_hint` — mnemonic or parent-facing hint text |
-| | | • `tricks` — array of strings or structured tips (rules, patterns) |
-| | | • `language_notes` — grammar, homophones, regional variants |
-| | | Any new capability should prefer **new keys inside `extensions`** over new columns when possible. |
+| **`extensions`** | **`JSONB`** | **Primary extension point.** Default `{}`. Typical keys (add freely): |
+| | | • **`pronunciation`** — `{ "ipa_or_dictionary_phonetic", "phonetics"[], "pronunciation_rules"[] }` |
+| | | • **`etymology`** — text (often from Wiktionary scrape in import script) |
+| | | • **`spelling_tricks`** — string array (heuristics + patterns) |
+| | | • **`dictionary_api_gloss`**, **`import_source`**, **`word_origin_notes`** — provenance / extra gloss |
+| | | Prefer **new keys inside `extensions`** over new columns when the shape may evolve. |
 
 **Uniqueness:** unique index on `(locale_code, lower(canonical_word))`.
 
