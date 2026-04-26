@@ -17,14 +17,31 @@ homeschooling apps with Ollama-backed AI and local text-to-speech support.
 ### Services
 
 - `app`: FastAPI app exposed at `http://localhost:4500`
-- `ollama`: Ollama server exposed inside the Docker network as
-  `http://ollama:11434`
+- `ollama` (optional): not started by default so Docker does not pull the large
+  Ollama image unless you ask for it. When enabled, it is reachable inside the
+  compose network as `http://ollama:11434`.
 
-### Run locally
+### Run locally (app only, no Ollama image pull)
 
 ```bash
 docker compose up --build
 ```
+
+To **also** start Ollama in Docker (this will pull `ollama/ollama` the first time):
+
+```bash
+docker compose --profile ollama up --build
+```
+
+If Ollama runs on your host instead, keep the default compose file (no `ollama`
+profile) and point the app at it, for example:
+
+```bash
+OLLAMA_BASE_URL=http://172.17.0.1:11434 docker compose up --build
+```
+
+(Use the Docker bridge gateway IP that reaches your host; `172.17.0.1` is common
+on Linux.)
 
 The API is available at:
 
