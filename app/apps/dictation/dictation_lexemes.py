@@ -147,6 +147,36 @@ async def get_definition_for_word(session: AsyncSession, word: str, locale_code:
     return await session.scalar(stmt)
 
 
+async def get_study_hints_for_word(
+    session: AsyncSession, word: str, locale_code: str = DEFAULT_LOCALE
+) -> dict[str, Any] | None:
+    """Definition plus etymology and spelling tricks from `extensions` for student hints."""
+    cw = word.lower().strip()
+    stmt = select(Lexeme.definition, Lexeme.extensions).where(
+        Lexeme.locale_code == locale_code,
+        func.lower(Lexeme.canonical_word) == cw,
+    )
+    row = (await session.execute(stmt)).first()
+    if not row:
+        return None
+    definition, extensions = row[0], row[1] or {}
+    etymology = extensions.get("etymology")
+    if etymology is not None:
+        etymology = str(etymology).strip() or None
+    tricks_raw = extensions.get("spelling_tricks")
+    spelling_tricks: list[str] = []
+    if isinstance(tricks_raw, list):
+        spelling_tricks = [str(t).strip() for t in tricks_raw if str(t).strip()]
+    elif isinstance(tricks_raw, str) and tricks_raw.strip():
+        spelling_tricks = [tricks_raw.strip()]
+    return {
+        "word": cw,
+        "definition": (definition or "").strip(),
+        "etymology": etymology,
+        "spelling_tricks": spelling_tricks,
+    }
+
+
 async def bulk_upsert_lexemes_from_rows(
     session: AsyncSession,
     rows: list[dict[str, Any]],
@@ -226,10 +256,12 @@ async def list_due_words(
     result = await session.execute(stmt)
     out: list[dict[str, Any]] = []
     for da, lex in result.all():
+        display = (lex.display_word or "").strip() or lex.canonical_word
         out.append(
             {
                 "assignment_id": str(da.id),
                 "word": lex.canonical_word,
+                "display_word": display,
                 "definition": lex.definition or "",
                 "interval": da.interval,
                 "correct_streak": da.correct_streak,

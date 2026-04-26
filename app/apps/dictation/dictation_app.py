@@ -24,7 +24,10 @@ DICTATION_OLLAMA_MODEL = os.getenv("DICTATION_OLLAMA_MODEL", "gemma4:e4b")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 DATA_DIR = Path(os.getenv("DICTATION_DATA_DIR", "/app/data"))
-CURRENT_AUDIO = DATA_DIR / "current_dictation.wav"
+CURRENT_SENTENCE_AUDIO = DATA_DIR / "current_dictation_sentence.wav"
+CURRENT_WORD_AUDIO = DATA_DIR / "current_dictation_word.wav"
+# Legacy single-file path (unused); kept name for any external references
+CURRENT_AUDIO = CURRENT_SENTENCE_AUDIO
 
 app = FastAPI(title="Dictation")
 
@@ -88,24 +91,45 @@ def generate_dictation(request: DictationRequest) -> dict[str, str]:
     if tts_model is None:
         raise HTTPException(status_code=503, detail="TTS model is not loaded yet.")
 
-    print(f"Generating audio for: {sentence}")
+    word_for_tts = request.word.strip()
+    if not word_for_tts:
+        raise HTTPException(status_code=400, detail="word is empty")
+
+    print(f"Generating sentence audio for: {sentence}")
     tts_model.tts_to_file(
         text=sentence,
         speaker="p226",
-        file_path=str(CURRENT_AUDIO),
+        file_path=str(CURRENT_SENTENCE_AUDIO),
         speed=0.25,
+    )
+
+    print(f"Generating word-only audio for: {word_for_tts}")
+    tts_model.tts_to_file(
+        text=word_for_tts,
+        speaker="p226",
+        file_path=str(CURRENT_WORD_AUDIO),
+        speed=0.35,
     )
 
     return {
         "status": "success",
         "sentence": sentence,
         "audio_url": "/apps/dictation/audio",
+        "word_audio_url": "/apps/dictation/audio/word",
     }
+
+
+@app.get("/audio/word", tags=["AI Engine"])
+def get_word_audio() -> FileResponse:
+    """Serves TTS for the target word alone (last generated session)."""
+    if not CURRENT_WORD_AUDIO.is_file():
+        raise HTTPException(status_code=404, detail="No word audio generated yet.")
+    return FileResponse(str(CURRENT_WORD_AUDIO), media_type="audio/wav")
 
 
 @app.get("/audio", tags=["AI Engine"])
 def get_audio() -> FileResponse:
-    """Serves the generated audio file to the browser."""
-    if not CURRENT_AUDIO.is_file():
+    """Serves the generated sentence audio to the browser."""
+    if not CURRENT_SENTENCE_AUDIO.is_file():
         raise HTTPException(status_code=404, detail="No dictation audio generated yet.")
-    return FileResponse(str(CURRENT_AUDIO), media_type="audio/wav")
+    return FileResponse(str(CURRENT_SENTENCE_AUDIO), media_type="audio/wav")
