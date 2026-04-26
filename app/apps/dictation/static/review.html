@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dictionary review — Dictation</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f8ff; color: #2c3e50; margin: 0; padding: 16px; }
+    .top { max-width: 900px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    .top a { color: #3498db; }
+    h1 { font-size: 1.35rem; margin: 0; }
+    .controls { max-width: 900px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    input[type="search"] { padding: 10px 14px; border-radius: 8px; border: 2px solid #bdc3c7; min-width: 200px; font-size: 1rem; }
+    button { padding: 10px 18px; border: none; border-radius: 8px; background: #3498db; color: #fff; font-size: 1rem; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pager { max-width: 900px; margin: 16px auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .card { max-width: 900px; margin: 0 auto 14px; background: #fff; border-radius: 12px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(0,0,0,.08); text-align: left; }
+    .card h2 { margin: 0 0 8px; font-size: 1.15rem; }
+    .meta { font-size: 0.85rem; color: #7f8c8d; margin-bottom: 10px; }
+    .def { margin: 8px 0; line-height: 1.45; }
+    .section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #ecf0f1; font-size: 0.92rem; }
+    .section strong { display: block; margin-bottom: 4px; color: #34495e; }
+    .section pre { white-space: pre-wrap; margin: 0; font-family: inherit; }
+    ul.tricks { margin: 4px 0 0 18px; padding: 0; }
+    .err { color: #c0392b; max-width: 900px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>📖 Review all dictionary words</h1>
+    <div>
+      <a href="/apps/dictation/ui/">← Student app</a>
+      · <a href="/apps/dictation/ui/admin.html">Admin (edit table)</a>
+    </div>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="filter" placeholder="Search word…" />
+    <button type="button" id="btn-search">Search</button>
+    <button type="button" id="btn-clear">Clear</button>
+  </div>
+
+  <p class="meta" style="max-width:900px;margin:0 auto 8px;text-align:center" id="summary"></p>
+  <p id="err" class="err" style="display:none"></p>
+  <div id="list"></div>
+
+  <div class="pager">
+    <button type="button" id="btn-prev">Previous page</button>
+    <span id="page-label"></span>
+    <button type="button" id="btn-next">Next page</button>
+  </div>
+
+  <script>
+    const API = '/apps/dictation';
+    const PAGE_SIZE = 40;
+    let offset = 0;
+    let total = 0;
+    let query = '';
+
+    function pron(ext) {
+      const p = ext && ext.pronunciation;
+      if (!p) return '';
+      const ipa = p.ipa_or_dictionary_phonetic || '';
+      const rules = (p.pronunciation_rules || []).join(' ');
+      const bits = [ipa && ('IPA / guide: ' + ipa), rules].filter(Boolean);
+      return bits.join(' · ');
+    }
+
+    function etym(ext) {
+      return (ext && ext.etymology) ? String(ext.etymology) : '';
+    }
+
+    function tricks(ext) {
+      return Array.isArray(ext && ext.spelling_tricks) ? ext.spelling_tricks : [];
+    }
+
+    function renderWord(w) {
+      const ext = w.extensions || {};
+      const pr = pron(ext);
+      const et = etym(ext);
+      const tr = tricks(ext);
+      let tricksHtml = '';
+      if (tr.length) {
+        tricksHtml = '<ul class="tricks">' + tr.map(t => '<li>' + escapeHtml(t) + '</li>').join('') + '</ul>';
+      } else {
+        tricksHtml = '<p style="margin:0;color:#95a5a6">No spelling tricks stored yet.</p>';
+      }
+      return `
+        <article class="card">
+          <h2>${escapeHtml(w.word)}</h2>
+          <div class="meta">Level ${w.difficulty_level != null ? w.difficulty_level : '—'} · <code style="font-size:0.75rem">${escapeHtml(w.id)}</code></div>
+          <div class="def"><strong>Definition</strong><br>${escapeHtml(w.definition || '(none)')}</div>
+          ${pr ? `<div class="section"><strong>Pronunciation</strong><pre>${escapeHtml(pr)}</pre></div>` : ''}
+          ${et ? `<div class="section"><strong>Etymology &amp; word history</strong><pre>${escapeHtml(et)}</pre></div>` : ''}
+          <div class="section"><strong>Spelling tricks</strong>${tricksHtml}</div>
+        </article>`;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    async function load() {
+      document.getElementById('err').style.display = 'none';
+      const params = new URLSearchParams({ offset: String(offset), limit: String(PAGE_SIZE) });
+      if (query) params.set('q', query);
+      const res = await fetch(`${API}/words/review?` + params.toString());
+      if (!res.ok) {
+        document.getElementById('err').textContent = await res.text();
+        document.getElementById('err').style.display = 'block';
+        return;
+      }
+      const data = await res.json();
+      total = data.total;
+      document.getElementById('summary').textContent =
+        `Showing ${data.words.length} of ${total} words (offset ${data.offset}).`;
+      document.getElementById('list').innerHTML = data.words.map(renderWord).join('');
+      document.getElementById('page-label').textContent =
+        `Page ${Math.floor(offset / PAGE_SIZE) + 1} of ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`;
+      document.getElementById('btn-prev').disabled = offset <= 0;
+      document.getElementById('btn-next').disabled = offset + PAGE_SIZE >= total;
+    }
+
+    document.getElementById('btn-search').onclick = () => {
+      query = document.getElementById('filter').value.trim();
+      offset = 0;
+      load();
+    };
+    document.getElementById('btn-clear').onclick = () => {
+      document.getElementById('filter').value = '';
+      query = '';
+      offset = 0;
+      load();
+    };
+    document.getElementById('btn-prev').onclick = () => {
+      offset = Math.max(0, offset - PAGE_SIZE);
+      load();
+    };
+    document.getElementById('btn-next').onclick = () => {
+      offset = offset + PAGE_SIZE;
+      load();
+    };
+    document.getElementById('filter').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('btn-search').click();
+    });
+
+    load();
+  </script>
+</body>
+</html>

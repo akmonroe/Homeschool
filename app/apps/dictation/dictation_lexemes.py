@@ -6,7 +6,7 @@ import uuid
 from datetime import date
 from typing import Any
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import and_, case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import DictationAssignment, DictationAttempt, Lexeme
@@ -55,6 +55,46 @@ async def get_or_create_lexeme(
     session.add(lex)
     await session.flush()
     return lex
+
+
+async def list_lexemes_review_page(
+    session: AsyncSession,
+    *,
+    locale_code: str = DEFAULT_LOCALE,
+    q: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
+) -> tuple[list[dict[str, Any]], int]:
+    """Paginated dictionary browse; optional case-insensitive substring match on canonical_word."""
+    filt: list[Any] = [Lexeme.locale_code == locale_code]
+    if q and q.strip():
+        filt.append(func.lower(Lexeme.canonical_word).like(f"%{q.strip().lower()}%"))
+    where_expr = and_(*filt)
+
+    total = int(
+        await session.scalar(select(func.count()).select_from(Lexeme).where(where_expr)) or 0
+    )
+
+    result = await session.scalars(
+        select(Lexeme)
+        .where(where_expr)
+        .order_by(Lexeme.canonical_word.asc())
+        .offset(max(0, offset))
+        .limit(min(500, max(1, limit)))
+    )
+    rows = list(result)
+    items = [
+        {
+            "id": str(r.id),
+            "word": r.canonical_word,
+            "display_word": r.display_word,
+            "difficulty_level": r.difficulty_level,
+            "definition": r.definition or "",
+            "extensions": r.extensions or {},
+        }
+        for r in rows
+    ]
+    return items, total
 
 
 async def list_lexemes_for_admin(session: AsyncSession, locale_code: str = DEFAULT_LOCALE) -> list[dict[str, Any]]:

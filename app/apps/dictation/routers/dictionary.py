@@ -3,7 +3,7 @@ import io
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,27 @@ SessionDep = Annotated[AsyncSession, Depends(get_core_pg_session)]
 class WordEdit(BaseModel):
     difficulty_level: int
     definition: str
+
+
+@router.get("/words/review", tags=["Dictionary"])
+async def review_dictionary_words(
+    session: SessionDep,
+    q: str | None = Query(None, description="Filter by substring of word (case-insensitive)"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Paginated browse of all dictionary words with definitions and extensions (pronunciation, etymology, tricks)."""
+    try:
+        items, total = await lex.list_lexemes_review_page(session, q=q, offset=offset, limit=limit)
+        return {
+            "status": "success",
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "words": items,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/words/{word}/definition")
