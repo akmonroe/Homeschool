@@ -1,4 +1,4 @@
-"""SQLite-backed spelling word session helpers (used by core admin API)."""
+"""Dictation profile sync (SQLite users) + word session (Postgres lexemes)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from datetime import date
 import requests
 
 from app.apps.dictation import database
+from app.apps.dictation import dictation_lexemes as lex
+from app.core.database import session_scope
 
 OLLAMA_GENERATE_URL = os.getenv(
     "OLLAMA_GENERATE_URL",
@@ -57,33 +59,25 @@ def ensure_dictation_user(core_student_id: str, display_name: str, difficulty_le
         return uid
 
 
-def draft_daily_session_dictation(user_id: int, target_daily_words: int) -> dict:
+async def draft_daily_session_dictation(user_id: int, target_daily_words: int) -> dict:
     conn = database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT difficulty_level FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
+    conn.close()
     if not row:
-        conn.close()
         raise ValueError("Dictation user not found")
     difficulty = int(row["difficulty_level"])
 
-    cursor.execute(
-        "SELECT w.word FROM user_words uw JOIN words w ON uw.word_id = w.id WHERE uw.user_id = ?",
-        (user_id,),
-    )
-    known_words = [r["word"] for r in cursor.fetchall()]
-
-    cursor.execute(
-        "SELECT count(*) as count FROM user_words WHERE user_id = ? AND next_review_date <= ?",
-        (user_id, date.today().isoformat()),
-    )
-    due_count = cursor.fetchone()["count"]
+    async with session_scope() as session:
+        known = await lex.known_words_for_user(session, user_id)
+        due_count = await lex.count_due_for_user(session, user_id)
 
     shortfall = target_daily_words - due_count
     new_words: list[str] = []
 
     if shortfall > 0:
-        known_str = ", ".join(known_words) if known_words else "none"
+        known_str = ", ".join(known) if known else "none"
         prompt = (
             f"You are an elementary spelling teacher. Generate a comma-separated list of EXACTLY {shortfall} "
             f"new spelling words appropriate for a student at skill level {difficulty} out of 10 "
@@ -98,33 +92,16 @@ def draft_daily_session_dictation(user_id: int, target_daily_words: int) -> dict
         response.raise_for_status()
         new_words = [w.strip().lower() for w in response.json()["response"].split(",") if w.strip()]
 
-    conn.close()
     return {"due_count": due_count, "suggested_words": new_words, "difficulty": difficulty}
 
 
-def commit_daily_session_dictation(user_id: int, words: list[str]) -> dict:
+async def commit_daily_session_dictation(user_id: int, words: list[str]) -> dict:
     conn = database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT difficulty_level FROM users WHERE id = ?", (user_id,))
     difficulty = int(cursor.fetchone()["difficulty_level"])
-
-    assigned_count = 0
-    for raw in words:
-        clean_word = raw.lower().strip()
-        if not clean_word:
-            continue
-        cursor.execute(
-            "INSERT OR IGNORE INTO words (word, difficulty_level) VALUES (?, ?)",
-            (clean_word, difficulty),
-        )
-        cursor.execute("SELECT id FROM words WHERE word = ?", (clean_word,))
-        word_id = int(cursor.fetchone()["id"])
-        try:
-            cursor.execute("INSERT INTO user_words (user_id, word_id) VALUES (?, ?)", (user_id, word_id))
-            assigned_count += 1
-        except sqlite3.IntegrityError:
-            pass
-
-    conn.commit()
     conn.close()
-    return {"assigned_count": assigned_count}
+
+    async with session_scope() as session:
+        assigned = await lex.commit_words_for_user(session, user_id, words, difficulty)
+    return {"assigned_count": assigned}

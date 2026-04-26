@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -26,6 +27,70 @@ class Base(DeclarativeBase):
 
 
 SCHEMA = "core"
+
+
+class Lexeme(Base):
+    """Canonical spelling/dictionary entry; `extensions` JSONB holds pronunciation, hints, tricks."""
+
+    __tablename__ = "lexemes"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    locale_code: Mapped[str] = mapped_column(String(16), nullable=False, server_default="en")
+    canonical_word: Mapped[str] = mapped_column(String(255), nullable=False)
+    display_word: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    difficulty_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    definition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extensions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DictationAssignment(Base):
+    """Per-dictation-user word queue (replaces SQLite user_words)."""
+
+    __tablename__ = "dictation_assignments"
+    __table_args__ = (
+        UniqueConstraint("dictation_user_id", "lexeme_id", name="uq_core_dictation_assign_user_lexeme"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dictation_user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lexeme_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.lexemes.id", ondelete="CASCADE"), nullable=False
+    )
+    interval: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    correct_streak: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    next_review_date: Mapped[date] = mapped_column(Date, nullable=False, server_default=func.current_date())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    lexeme: Mapped[Lexeme] = relationship()
+
+
+class DictationAttempt(Base):
+    """Practice history (replaces SQLite history)."""
+
+    __tablename__ = "dictation_attempts"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dictation_user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lexeme_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.lexemes.id", ondelete="CASCADE"), nullable=False
+    )
+    is_correct: Mapped[bool] = mapped_column(nullable=False)
+    attempt_date: Mapped[date] = mapped_column(Date, nullable=False, server_default=func.current_date())
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    lexeme: Mapped[Lexeme] = relationship()
 
 
 class Student(Base):

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import uuid
 from typing import Annotated
 
@@ -76,12 +75,7 @@ async def create_student(session: SessionDep, body: StudentCreate):
     await session.flush()
     await session.refresh(row)
     try:
-        await asyncio.to_thread(
-            dictation_session.ensure_dictation_user,
-            str(row.id),
-            row.display_name,
-            level,
-        )
+        dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
     except Exception as exc:
         raise HTTPException(
             status_code=502,
@@ -115,12 +109,7 @@ async def update_student(session: SessionDep, student_id: uuid.UUID, body: Stude
     level = int(meta.get("dictation_skill_level", 5))
     level = max(1, min(10, level))
     try:
-        await asyncio.to_thread(
-            dictation_session.ensure_dictation_user,
-            str(row.id),
-            row.display_name,
-            level,
-        )
+        dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
     except Exception:
         pass
     return row
@@ -133,12 +122,7 @@ async def get_dictation_profile(session: SessionDep, student_id: uuid.UUID):
     level = int(meta.get("dictation_skill_level", 5))
     level = max(1, min(10, level))
     try:
-        uid = await asyncio.to_thread(
-            dictation_session.ensure_dictation_user,
-            str(row.id),
-            row.display_name,
-            level,
-        )
+        uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return DictationProfileOut(
@@ -163,17 +147,8 @@ async def draft_dictation_word_session(
     level = int(meta.get("dictation_skill_level", 5))
     level = max(1, min(10, level))
     try:
-        uid = await asyncio.to_thread(
-            dictation_session.ensure_dictation_user,
-            str(row.id),
-            row.display_name,
-            level,
-        )
-        data = await asyncio.to_thread(
-            dictation_session.draft_daily_session_dictation,
-            uid,
-            body.target_daily_words,
-        )
+        uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+        data = await dictation_session.draft_daily_session_dictation(uid, body.target_daily_words)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -203,17 +178,8 @@ async def commit_dictation_word_session(
     if not words:
         raise HTTPException(status_code=400, detail="No words to assign")
     try:
-        uid = await asyncio.to_thread(
-            dictation_session.ensure_dictation_user,
-            str(row.id),
-            row.display_name,
-            level,
-        )
-        result = await asyncio.to_thread(
-            dictation_session.commit_daily_session_dictation,
-            uid,
-            words,
-        )
+        uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+        result = await dictation_session.commit_daily_session_dictation(uid, words)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -248,7 +214,7 @@ async def commit_dictation_word_session(
         dictation_user_id=uid,
         assignment_id=assign.id,
         assigned_count=result["assigned_count"],
-        sqlite_message=f"Linked {result['assigned_count']} new word rows in dictation (duplicates skipped).",
+        message=f"Added {result['assigned_count']} new word assignment(s) in Postgres (already-assigned words skipped).",
     )
 
 

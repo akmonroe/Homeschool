@@ -167,7 +167,7 @@ class DictationSessionCommitResponse(BaseModel):
     dictation_user_id: int
     assignment_id: uuid.UUID
     assigned_count: int
-    sqlite_message: str
+    message: str
 
 
 class SkillObservationOut(BaseModel):

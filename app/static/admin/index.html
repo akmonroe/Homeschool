@@ -235,7 +235,7 @@
       }
       const data = await res.json();
       document.getElementById('spell-ok').textContent =
-        `${data.sqlite_message} Core assignment ${data.assignment_id}.`;
+        `${data.message} Core assignment ${data.assignment_id}.`;
       document.getElementById('spell-ok').style.display = 'block';
       document.getElementById('draft-box').style.display = 'none';
     }
