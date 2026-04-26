@@ -128,10 +128,30 @@ Suite-level **assignments** (e.g. from platform admin when committing an AI word
 
 ---
 
-## 6. Maintenance
+## 6. Bulk import (school spelling lists → `lexemes`)
+
+`scripts/import_school_spelling_words.py` reads a CSV (`word`, `difficulty_level`, `definition`), then for each word:
+
+- Fetches phonetics from **api.dictionaryapi.dev** (CC BY-SA 3.0)
+- Scrapes an **Etymology** blurb from **English Wiktionary** when the section exists
+- Writes **`extensions`** with `pronunciation`, `etymology`, `spelling_tricks`, and notes
+
+Run inside Docker (sync URL uses the `postgres` service name):
+
+```bash
+docker compose exec app sh -c \
+  'export DATABASE_URL_SYNC=postgresql://homeschool:homeschool@postgres:5432/homeschool && \
+   python scripts/import_school_spelling_words.py --csv app/apps/dictation/resources/words/spellingListtwobee.csv'
+```
+
+Bundled CSVs are **study-style** vocabulary lists, not a substitute for official Scripps materials.
+
+---
+
+## 7. Maintenance
 
 - **Schema changes:** new Alembic revision; update this doc and `models.py`.
 - **Backups:** Postgres volume + `dictation-data` (SQLite) for profile ids.
 - **Migrating old SQLite `words`:** one-off script: read old DB → `INSERT`/`upsert` into `core.lexemes` and rebuild `dictation_assignments` from old `user_words` if you still have a legacy file.
 
-**Last reviewed:** after migration `0002_dictation_lexemes` (lexemes + dictation queue in Postgres).
+**Last reviewed:** after `import_school_spelling_words.py` and lexeme `extensions` enrichment workflow.
