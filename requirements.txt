@@ -2,3 +2,7 @@ fastapi
 httpx
 pyttsx3
 uvicorn[standard]
+requests
+python-multipart
+TTS==0.22.0
+transformers

@@ -1,21 +1,33 @@
 import os
 import tempfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 import pyttsx3
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
+from app.apps.dictation.dictation_app import app as dictation_subapp
+from app.apps.dictation.dictation_app import setup_dictation
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/")
+
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
 DEFAULT_OLLAMA_MODEL = os.getenv("DEFAULT_OLLAMA_MODEL", "llama3.2")
 MAX_TTS_CHARS = int(os.getenv("MAX_TTS_CHARS", "5000"))
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    setup_dictation()
+    yield
+
 
 app = FastAPI(
     title="Homeschool",
@@ -24,6 +36,7 @@ app = FastAPI(
         "Individual apps are linked from the landing page."
     ),
     version="0.1.0",
+    lifespan=_lifespan,
 )
 
 
@@ -33,10 +46,11 @@ async def landing_page() -> FileResponse:
 
 
 @app.get("/apps/dictation", include_in_schema=False)
-async def dictation_app_placeholder() -> FileResponse:
-    return FileResponse(STATIC_DIR / "apps" / "dictation.html")
+async def dictation_entry() -> RedirectResponse:
+    return RedirectResponse(url="/apps/dictation/ui/", status_code=307)
 
 
+app.mount("/apps/dictation", dictation_subapp, name="dictation")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 

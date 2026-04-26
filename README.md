@@ -7,7 +7,15 @@ grow with multiple apps; the first integrated app will be **Dictation**.
 After you start the stack, open **http://localhost:4500/** for a landing page
 that links to each app and to the shared API documentation (`/docs`).
 
-- **Dictation** — `/apps/dictation` (placeholder until the dictation app is merged)
+- **Dictation** — student UI at **http://localhost:4500/apps/dictation/ui/** (admin:
+  `/apps/dictation/ui/admin.html`). REST API lives under **`/apps/dictation`**;
+  OpenAPI: **`/apps/dictation/docs`**. SQLite and generated audio persist in the
+  **`dictation-data`** Docker volume (`/app/data` in the container).
+
+  Dictation uses **`DICTATION_OLLAMA_MODEL`** (default `gemma4:e4b`) for
+  `/api/generate` calls to your host Ollama. On first start, **uvicorn waits**
+  while Coqui downloads the VITS weights into the container; HTTP may reset
+  until you see `Application startup complete` in the logs.
 
 ## Base development stack
 

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            padding: 20px;
+            color: #333;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header a {
+            background: #34495e;
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+
+        .tabs {
+            margin-bottom: 20px;
+        }
+
+        .tabs button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            background: #ddd;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .tabs button.active {
+            background: white;
+            border-top: 3px solid #3498db;
+            font-weight: bold;
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 0 5px 5px 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        select,
+        input,
+        button.action-btn {
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background-color: #f8f9fa;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>Parent Dashboard</h1>
+        <a href="/apps/dictation/ui">🏠 Back to Student App</a>
+    </div>
+
+    <div class="tabs">
+        <button class="active" onclick="switchTab('progress')">📈 Progress Report</button>
+        <button onclick="switchTab('words')">📚 Word Manager</button>
+        <button onclick="switchTab('students')">👩‍🎓 Student Manager</button>
+        <button onclick="switchTab('assignments')">📝 Assignment Builder</button>
+    </div>
+
+    <div id="progress" class="panel active">
+        <label for="student-select">Select Student: </label>
+        <select id="student-select" onchange="loadProgress()">
+            <option>Loading...</option>
+        </select>
+
+        <div class="chart-container">
+            <canvas id="progressChart"></canvas>
+        </div>
+    </div>
+
+    <div id="words" class="panel">
+        <h3>Master Dictionary</h3>
+
+        <div
+            style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 1px solid #ddd;">
+            <h4 style="margin-top: 0;">Bulk Upload Words</h4>
+            <input type="file" id="csv-upload" accept=".csv" style="border: none; padding: 0;">
+            <button onclick="uploadCSV()"
+                style="background-color: #2ecc71; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">⬆️
+                Upload CSV</button>
+            <p style="font-size: 0.8em; color: #7f8c8d; margin: 5px 0 0 0;">Format: word, difficulty_level (1-10),
+                definition</p>
+        </div>
+        <table id="word-table">
+            <thead>
+                <tr>
+                    <th>Word</th>
+                    <th>Level</th>
+                    <th>Definition</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div id="students" class="panel">
+        <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
+
+            <div
+                style="background: #f8f9fa; padding: 20px; border-radius: 5px; border: 1px solid #ddd; flex: 1; min-width: 250px;">
+                <h3 style="margin-top: 0;">Add New Student</h3>
+                <label for="new-student-name" style="display:block; margin-bottom: 5px;">Student Name:</label>
+                <input type="text" id="new-student-name" placeholder="e.g. Alex"
+                    style="width: 100%; margin-bottom: 15px; box-sizing: border-box;">
+
+                <label for="new-student-level" style="display:block; margin-bottom: 5px;">Skill Level (1-10):</label>
+                <input type="number" id="new-student-level" min="1" max="10" value="1"
+                    style="width: 100%; margin-bottom: 15px; box-sizing: border-box;">
+
+                <button onclick="addStudent()"
+                    style="background-color: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%;">➕
+                    Create Profile</button>
+            </div>
+
+            <div style="flex: 2; min-width: 300px;">
+                <h3 style="margin-top: 0;">Current Roster</h3>
+                <table id="student-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Skill Level</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="assignments" class="panel">
+        <div style="max-width: 600px;">
+            <h3 style="margin-top: 0;">Daily Lesson Planner</h3>
+            <p>Review and edit the AI's recommendations before assigning them to a student.</p>
+
+            <div
+                style="background: #f8f9fa; padding: 20px; border-radius: 5px; border: 1px solid #ddd; margin-bottom: 20px;">
+                <label for="assign-student" style="display:block; margin-bottom: 5px;">1. Select Student:</label>
+                <select id="assign-student" style="width: 100%; margin-bottom: 15px;">
+                    <option>Loading...</option>
+                </select>
+
+                <label for="assign-count" style="display:block; margin-bottom: 5px;">2. Total Words for Today's
+                    Lesson:</label>
+                <input type="number" id="assign-count" value="10" min="1" max="50"
+                    style="width: 100%; margin-bottom: 15px; box-sizing: border-box;">
+
+                <button onclick="draftSession()"
+                    style="background-color: #9b59b6; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%;"
+                    id="btn-draft">🪄 Ask AI for Suggestions</button>
+            </div>
+
+            <div id="draft-review-area" style="display: none;">
+                <p id="draft-status" style="font-weight: bold; color: #2c3e50;"></p>
+                <label for="draft-words" style="display:block; margin-bottom: 5px;">3. Review & Edit (Comma
+                    separated):</label>
+                <textarea id="draft-words" rows="4"
+                    style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 1.1em; font-family: monospace; margin-bottom: 15px; box-sizing: border-box;"></textarea>
+
+                <button onclick="commitSession()"
+                    style="background-color: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 1.1em;">✅
+                    Approve and Assign Words</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/apps/dictation';
+        let chartInstance = null;
+
+        // --- Tab Switching Logic ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+
+            if (tabId === 'words') loadWords();
+        }
+
+        // --- Progress Chart Logic ---
+        async function loadStudents() {
+            try {
+                const res = await fetch(`${API_BASE}/users`);
+                const data = await res.json();
+
+                // 1. Target all THREE UI elements
+                const progressSelect = document.getElementById('student-select');
+                const rosterTable = document.querySelector('#student-table tbody');
+                const assignSelect = document.getElementById('assign-student');
+
+                // 2. Clear out the old "Loading..." data
+                progressSelect.innerHTML = '';
+                rosterTable.innerHTML = '';
+                if (assignSelect) assignSelect.innerHTML = ''; // Check if it exists just in case
+
+                // If the database is empty
+                if (data.users.length === 0) {
+                    progressSelect.innerHTML = '<option value="">No students found</option>';
+                    if (assignSelect) assignSelect.innerHTML = '<option value="">No students found</option>';
+                    rosterTable.innerHTML = '<tr><td colspan="3" style="text-align:center;">No students yet. Add one!</td></tr>';
+                    return;
+                }
+
+                // 3. Loop through the database and fill everything!
+                data.users.forEach(u => {
+                    // Add to Progress dropdown
+                    progressSelect.innerHTML += `<option value="${u.id}">${u.name}</option>`;
+
+                    // Add to Assignment dropdown
+                    if (assignSelect) assignSelect.innerHTML += `<option value="${u.id}">${u.name}</option>`;
+
+                    // Add to Roster table
+                    rosterTable.innerHTML += `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td><strong>${u.name}</strong></td>
+                            <td>Level ${u.difficulty_level}</td>
+                        </tr>
+                    `;
+                });
+
+                // 4. Load the graph for the first student in the list
+                if (data.users.length > 0) {
+                    loadProgress();
+                }
+            } catch (e) {
+                console.error("Failed to load students:", e);
+                alert("Could not load students from the database.");
+            }
+        }
+
+        async function loadProgress() {
+            const userId = document.getElementById('student-select').value;
+            const res = await fetch(`${API_BASE}/users/${userId}/progress`);
+            const data = await res.json();
+
+            // Format data for Chart.js (Reverse so oldest is left, newest is right)
+            const labels = data.report.map(r => r.date).reverse();
+            const scores = data.report.map(r => r.accuracy_percent).reverse();
+
+            if (chartInstance) chartInstance.destroy(); // Clear old chart
+
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accuracy %',
+                        data: scores,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }
+            });
+        }
+
+        // --- Word Manager Logic ---
+        async function loadWords() {
+            const res = await fetch(`${API_BASE}/words`);
+            const data = await res.json();
+            const tbody = document.querySelector('#word-table tbody');
+            tbody.innerHTML = '';
+
+            data.words.forEach(w => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${w.word}</strong></td>
+                        <td><input type="number" min="1" max="10" id="lvl-${w.id}" value="${w.difficulty_level}" style="width: 60px;"></td>                        
+                        <td><input type="text" id="def-${w.id}" value="${w.definition || ''}" style="width: 90%;"></td>
+                        <td><button class="action-btn" onclick="saveWord(${w.id})">💾 Save</button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function saveWord(id) {
+            const level = document.getElementById(`lvl-${id}`).value;
+            const def = document.getElementById(`def-${id}`).value;
+
+            await fetch(`${API_BASE}/words/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ difficulty_level: level, definition: def })
+            });
+            alert('Saved!');
+        }
+
+        async function uploadCSV() {
+            const fileInput = document.getElementById('csv-upload');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Please select a CSV file first!");
+                return;
+            }
+
+            // We use FormData to package the file for the backend
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                // Note: We do NOT set the 'Content-Type' header here. 
+                // The browser automatically sets it to 'multipart/form-data' when using FormData.
+                const res = await fetch(`${API_BASE}/words/bulk-upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    alert(data.message); // E.g., "Processed 20 words."
+                    fileInput.value = ""; // Clear the file picker
+                    loadWords(); // Instantly refresh the table below!
+                } else {
+                    alert("Upload failed: " + data.detail);
+                }
+            } catch (e) {
+                alert("Error connecting to the server.");
+            }
+        }
+
+        // --- Student Manager Logic ---
+        async function addStudent() {
+            const nameInput = document.getElementById('new-student-name');
+            const levelInput = document.getElementById('new-student-level');
+
+            const name = nameInput.value.trim();
+            const level = parseInt(levelInput.value);
+
+            if (!name) {
+                alert("Please enter a name!");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        difficulty_level: level
+                    })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    alert(data.message); // E.g., "Profile created for Alex!"
+                    nameInput.value = ""; // Clear the form
+                    levelInput.value = "1";
+                    loadStudents(); // Refresh the dropdowns!
+                } else {
+                    alert("Failed: " + data.detail);
+                }
+            } catch (e) {
+                alert("Error connecting to server.");
+            }
+        }
+
+        // --- Assignment Builder Logic ---
+        async function draftSession() {
+            const userId = document.getElementById('assign-student').value;
+            const count = parseInt(document.getElementById('assign-count').value);
+            const btn = document.getElementById('btn-draft');
+
+            btn.innerText = "⏳ AI is thinking...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/users/${userId}/session/draft`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_daily_words: count })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    document.getElementById('draft-review-area').style.display = 'block';
+                    document.getElementById('draft-status').innerText =
+                        `They have ${data.due_count} words due for review. The AI suggests adding these ${data.suggested_words.length} new words:`;
+
+                    // Populate the textarea for human editing
+                    document.getElementById('draft-words').value = data.suggested_words.join(", ");
+                }
+            } catch (e) {
+                alert("Error getting draft from AI.");
+            }
+
+            btn.innerText = "🪄 Ask AI for Suggestions";
+            btn.disabled = false;
+        }
+
+        async function commitSession() {
+            const userId = document.getElementById('assign-student').value;
+            const rawWords = document.getElementById('draft-words').value;
+
+            // Turn the comma string back into an array
+            const finalWords = rawWords.split(",").map(w => w.trim()).filter(w => w.length > 0);
+
+            if (finalWords.length === 0) {
+                alert("The word list is empty!");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/users/${userId}/session/commit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ words: finalWords })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    alert("Success! " + data.message);
+                    document.getElementById('draft-review-area').style.display = 'none';
+                    document.getElementById('draft-words').value = "";
+                }
+            } catch (e) {
+                alert("Error saving words.");
+            }
+        }
+
+        // Boot up
+        window.onload = loadStudents;
+    </script>
+</body>
+
+</html>
