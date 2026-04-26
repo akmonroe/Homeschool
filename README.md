@@ -7,10 +7,13 @@ grow with multiple apps; the first integrated app will be **Dictation**.
 After you start the stack, open **http://localhost:4500/** for a landing page
 that links to each app and to the shared API documentation (`/docs`).
 
-- **Platform admin** — **http://localhost:4500/admin/** (Postgres students, skill
-  levels, AI spelling word planner linked to dictation).
-- **Dictation** — student UI at **http://localhost:4500/apps/dictation/ui/** (dictionary
-  & progress: `/apps/dictation/ui/admin.html`). REST API lives under **`/apps/dictation`**;
+- **Platform admin** (students + AI word planner) — **`http://localhost:4500/admin/`**
+  (or **`http://localhost:4500/admin`** — redirects to the trailing slash). Served from
+  `app/static/admin/index.html`. Requires Postgres: if the page loads but API calls fail,
+  check **`DATABASE_URL`** and `docker compose ps` (Postgres must be healthy).
+- **Dictation admin** (dictionary table + progress chart only) — **`http://localhost:4500/apps/dictation/ui/admin.html`**
+  (not the same URL as platform admin).
+- **Dictation** — student UI at **http://localhost:4500/apps/dictation/ui/**. REST API under **`/apps/dictation`**;
   OpenAPI: **`/apps/dictation/docs`**. SQLite and generated audio persist in the
   **`dictation-data`** Docker volume (`/app/data` in the container).
 
