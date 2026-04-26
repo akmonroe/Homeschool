@@ -56,6 +56,12 @@ async def dictation_entry() -> RedirectResponse:
     return RedirectResponse(url="/apps/dictation/ui/", status_code=307)
 
 
+@app.get("/admin", include_in_schema=False)
+async def admin_portal() -> RedirectResponse:
+    return RedirectResponse(url="/admin/", status_code=307)
+
+
+app.mount("/admin", StaticFiles(directory=str(STATIC_DIR / "admin"), html=True), name="admin_static")
 app.mount("/apps/dictation", dictation_subapp, name="dictation")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

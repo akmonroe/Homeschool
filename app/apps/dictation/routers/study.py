@@ -22,16 +22,9 @@ class WordAdd(BaseModel):
     difficulty_level: int = 1 #changed to int
     definition: str = ""
 
-class SessionRequest(BaseModel):
-    target_daily_words: int = 10
-
 class GradeRequest(BaseModel):
     target_word: str
     user_input: str
-
-class CommitRequest(BaseModel):
-    words: list[str]
-
 
 @router.post("/users/{user_id}/words")
 def assign_word_to_user(user_id: int, word_data: WordAdd):
@@ -47,44 +40,6 @@ def assign_word_to_user(user_id: int, word_data: WordAdd):
         conn.commit()
         conn.close()
         return {"status": "success", "message": f"Assigned '{clean_word}'."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/users/{user_id}/session/build")
-def build_daily_session(user_id: int, request: SessionRequest):
-    try:
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT difficulty_level FROM users WHERE id = ?", (user_id,))
-        difficulty = cursor.fetchone()['difficulty_level']
-        
-        cursor.execute("SELECT w.word FROM user_words uw JOIN words w ON uw.word_id = w.id WHERE uw.user_id = ?", (user_id,))
-        known_words = [row['word'] for row in cursor.fetchall()]
-        
-        cursor.execute("SELECT count(*) as count FROM user_words WHERE user_id = ? AND next_review_date <= ?", (user_id, date.today().isoformat()))
-        due_count = cursor.fetchone()['count']
-        
-        shortfall = request.target_daily_words - due_count
-        
-        if shortfall > 0:
-            known_str = ", ".join(known_words) if known_words else "none"
-            prompt = f"You are an elementary spelling teacher. Generate a comma-separated list of EXACTLY {shortfall} new spelling words appropriate for a student at skill level {difficulty} out of 10 (where 1 means basic 3-letter words like 'cat' and 10 means advanced middle-school words like 'meticulous'). DO NOT use any of these words: {known_str}. Output ONLY the comma-separated words, nothing else."
-            response = requests.post(
-                OLLAMA_GENERATE_URL,
-                json={"model": DICTATION_OLLAMA_MODEL, "prompt": prompt, "stream": False},
-                timeout=120,
-            )
-            new_words = [w.strip().lower() for w in response.json()["response"].split(",") if w.strip()]
-            
-            for word in new_words:
-                cursor.execute("INSERT OR IGNORE INTO words (word, difficulty_level) VALUES (?, ?)", (word, difficulty))
-                cursor.execute("SELECT id FROM words WHERE word = ?", (word,))
-                word_id = cursor.fetchone()['id']
-                cursor.execute("INSERT OR IGNORE INTO user_words (user_id, word_id) VALUES (?, ?)", (user_id, word_id))
-            conn.commit()
-            
-        conn.close()
-        return {"status": "success", "message": f"Session ready. Generated {max(0, shortfall)} new words."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -145,71 +100,3 @@ def grade_dictation(user_id: int, request: GradeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/users/{user_id}/session/draft", tags=["Study & Curriculum"])
-def draft_daily_session(user_id: int, request: SessionRequest):
-    """Asks the AI for word suggestions without saving them to the database."""
-    try:
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT difficulty_level FROM users WHERE id = ?", (user_id,))
-        difficulty = cursor.fetchone()['difficulty_level']
-        
-        cursor.execute("SELECT w.word FROM user_words uw JOIN words w ON uw.word_id = w.id WHERE uw.user_id = ?", (user_id,))
-        known_words = [row['word'] for row in cursor.fetchall()]
-        
-        cursor.execute("SELECT count(*) as count FROM user_words WHERE user_id = ? AND next_review_date <= ?", (user_id, date.today().isoformat()))
-        due_count = cursor.fetchone()['count']
-        
-        shortfall = request.target_daily_words - due_count
-        new_words = []
-        
-        if shortfall > 0:
-            known_str = ", ".join(known_words) if known_words else "none"
-            prompt = f"You are an elementary spelling teacher. Generate a comma-separated list of EXACTLY {shortfall} new spelling words appropriate for a student at skill level {difficulty} out of 10 (where 1 means basic 3-letter words and 10 means advanced middle-school words). DO NOT use any of these words: {known_str}. Output ONLY the comma-separated words, nothing else."
-            
-            response = requests.post(
-                OLLAMA_GENERATE_URL,
-                json={"model": DICTATION_OLLAMA_MODEL, "prompt": prompt, "stream": False},
-                timeout=120,
-            )
-            new_words = [w.strip().lower() for w in response.json()["response"].split(",") if w.strip()]
-            
-        conn.close()
-        return {"status": "success", "due_count": due_count, "suggested_words": new_words, "difficulty": difficulty}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/users/{user_id}/session/commit", tags=["Study & Curriculum"])
-def commit_daily_session(user_id: int, request: CommitRequest):
-    """Takes the human-approved list of words and formally assigns them."""
-    try:
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
-        
-        # We need the user's difficulty level to save new words properly
-        cursor.execute("SELECT difficulty_level FROM users WHERE id = ?", (user_id,))
-        difficulty = cursor.fetchone()['difficulty_level']
-        
-        assigned_count = 0
-        for word in request.words:
-            clean_word = word.lower().strip()
-            if not clean_word: continue
-                
-            # Insert into master dictionary if it doesn't exist yet
-            cursor.execute("INSERT OR IGNORE INTO words (word, difficulty_level) VALUES (?, ?)", (clean_word, difficulty))
-            cursor.execute("SELECT id FROM words WHERE word = ?", (clean_word,))
-            word_id = cursor.fetchone()['id']
-            
-            # Assign it to the kid
-            try:
-                cursor.execute("INSERT INTO user_words (user_id, word_id) VALUES (?, ?)", (user_id, word_id))
-                assigned_count += 1
-            except sqlite3.IntegrityError:
-                pass # Skip if they already have this word assigned
-                
-        conn.commit()
-        conn.close()
-        return {"status": "success", "message": f"Successfully assigned {assigned_count} words!"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

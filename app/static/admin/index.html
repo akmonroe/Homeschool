@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homeschool — Platform admin</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; margin: 0; padding: 24px; }
+    h1 { margin: 0 0 8px; font-size: 1.5rem; }
+    .sub { color: #64748b; margin-bottom: 24px; font-size: 0.95rem; }
+    a.nav { color: #0d9488; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 0; flex-wrap: wrap; }
+    .tabs button {
+      padding: 10px 18px; border: none; background: #e2e8f0; cursor: pointer;
+      border-radius: 8px 8px 0 0; font-size: 0.95rem;
+    }
+    .tabs button.active { background: #fff; font-weight: 600; border-bottom: 2px solid #0d9488; }
+    .panel {
+      display: none; background: #fff; padding: 24px; border-radius: 0 12px 12px 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08); max-width: 960px;
+    }
+    .panel.active { display: block; }
+    label { display: block; font-weight: 600; margin-top: 12px; margin-bottom: 4px; font-size: 0.85rem; }
+    input, select, textarea { width: 100%; max-width: 420px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+    textarea { max-width: 100%; min-height: 100px; font-family: ui-monospace, monospace; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; }
+    .btn { margin-top: 12px; padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #0d9488; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-ai { background: #7c3aed; color: #fff; }
+    .err { color: #b91c1c; margin-top: 8px; font-size: 0.9rem; }
+    .ok { color: #047857; margin-top: 8px; font-size: 0.9rem; }
+    .draft-box { margin-top: 16px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: none; }
+  </style>
+</head>
+<body>
+  <h1>Platform admin</h1>
+  <p class="sub">
+    Central students (Postgres) and AI-assisted spelling word sets for dictation.
+    <a class="nav" href="/">← Portal</a>
+    · <a class="nav" href="/apps/dictation/ui/">Student dictation</a>
+    · <a class="nav" href="/apps/dictation/ui/admin.html">Dictation dictionary &amp; progress</a>
+  </p>
+
+  <div class="tabs">
+    <button type="button" class="active" data-tab="students">Students</button>
+    <button type="button" data-tab="spelling">Spelling words (AI)</button>
+  </div>
+
+  <div id="students" class="panel active">
+    <h2 style="margin-top:0;font-size:1.1rem">All students</h2>
+    <p style="color:#64748b;font-size:0.9rem">Each student syncs a dictation profile (SQLite) for the spelling app. Skill level 1–10 is stored in metadata.</p>
+    <label for="new-name">Display name</label>
+    <input id="new-name" type="text" placeholder="e.g. Alex" />
+    <label for="new-level">Dictation skill level (1–10)</label>
+    <input id="new-level" type="number" min="1" max="10" value="5" />
+    <label for="new-notes">Notes (optional)</label>
+    <input id="new-notes" type="text" placeholder="Allergies, goals…" />
+    <button type="button" class="btn btn-primary" onclick="createStudent()">Create student</button>
+    <p id="student-msg" class="ok" style="display:none"></p>
+    <p id="student-err" class="err" style="display:none"></p>
+    <table>
+      <thead><tr><th>Name</th><th>Skill</th><th>Core ID</th><th>Actions</th></tr></thead>
+      <tbody id="student-rows"></tbody>
+    </table>
+  </div>
+
+  <div id="spelling" class="panel">
+    <h2 style="margin-top:0;font-size:1.1rem">AI word suggestions → dictation</h2>
+    <p style="color:#64748b;font-size:0.9rem">Uses the same Ollama flow as before. Words are saved to dictation and recorded as a core assignment.</p>
+    <label for="spell-student">Student</label>
+    <select id="spell-student"><option value="">Loading…</option></select>
+    <label for="spell-count">Target words for today’s lesson (total desired)</label>
+    <input id="spell-count" type="number" min="1" max="50" value="10" />
+    <button type="button" class="btn btn-ai" id="btn-draft" onclick="draftSpelling()">Ask AI for suggestions</button>
+    <div id="draft-box" class="draft-box">
+      <p id="draft-status" style="font-weight:600;margin-top:0"></p>
+      <label for="draft-words">Review &amp; edit (comma-separated)</label>
+      <textarea id="draft-words"></textarea>
+      <button type="button" class="btn btn-primary" onclick="commitSpelling()">Approve and assign words</button>
+    </div>
+    <p id="spell-err" class="err" style="display:none"></p>
+    <p id="spell-ok" class="ok" style="display:none"></p>
+  </div>
+
+  <script>
+    const CORE = '/core';
+    let _studentNames = {};
+
+    document.querySelectorAll('.tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    async function loadStudents() {
+      document.getElementById('student-err').style.display = 'none';
+      try {
+        const res = await fetch(`${CORE}/students`);
+        if (!res.ok) throw new Error(await res.text());
+        const list = await res.json();
+        _studentNames = {};
+        const tbody = document.getElementById('student-rows');
+        const sel = document.getElementById('spell-student');
+        tbody.innerHTML = '';
+        sel.innerHTML = '';
+        if (!list.length) {
+          tbody.innerHTML = '<tr><td colspan="4">No students yet. Create one above.</td></tr>';
+          sel.innerHTML = '<option value="">No students</option>';
+          return;
+        }
+        for (const s of list) {
+          _studentNames[s.id] = s.display_name;
+          const meta = s.metadata || {};
+          const lvl = meta.dictation_skill_level != null ? meta.dictation_skill_level : '—';
+          tbody.innerHTML += `<tr>
+            <td><strong>${escapeHtml(s.display_name)}</strong></td>
+            <td>${escapeHtml(String(lvl))}</td>
+            <td><code style="font-size:0.8rem">${s.id}</code></td>
+            <td>
+              <button type="button" class="btn btn-secondary" style="margin:0;padding:6px 10px" data-student-id="${s.id}" onclick="editSkillFromBtn(this)">Set skill…</button>
+            </td>
+          </tr>`;
+          sel.innerHTML += `<option value="${s.id}">${escapeHtml(s.display_name)}</option>`;
+        }
+      } catch (e) {
+        document.getElementById('student-err').textContent = 'Could not load students. Is Postgres running and DATABASE_URL set? ' + e.message;
+        document.getElementById('student-err').style.display = 'block';
+      }
+    }
+
+    function escapeHtml(t) {
+      const d = document.createElement('div');
+      d.textContent = t;
+      return d.innerHTML;
+    }
+
+    async function createStudent() {
+      document.getElementById('student-msg').style.display = 'none';
+      document.getElementById('student-err').style.display = 'none';
+      const name = document.getElementById('new-name').value.trim();
+      const level = parseInt(document.getElementById('new-level').value, 10) || 5;
+      const notes = document.getElementById('new-notes').value.trim() || null;
+      if (!name) { alert('Enter a name'); return; }
+      const res = await fetch(`${CORE}/students`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          display_name: name,
+          notes,
+          metadata: { dictation_skill_level: Math.min(10, Math.max(1, level)) }
+        })
+      });
+      if (!res.ok) {
+        document.getElementById('student-err').textContent = await res.text();
+        document.getElementById('student-err').style.display = 'block';
+        return;
+      }
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-notes').value = '';
+      document.getElementById('student-msg').textContent = 'Student created.';
+      document.getElementById('student-msg').style.display = 'block';
+      await loadStudents();
+    }
+
+    async function editSkillFromBtn(btn) {
+      const id = btn.getAttribute('data-student-id');
+      const displayName = _studentNames[id] || '';
+      const v = prompt(`Dictation skill level (1–10) for ${displayName}:`, '5');
+      if (v === null) return;
+      const level = Math.min(10, Math.max(1, parseInt(v, 10) || 5));
+      const res = await fetch(`${CORE}/students/${id}`);
+      if (!res.ok) return;
+      const s = await res.json();
+      const meta = Object.assign({}, s.metadata || {}, { dictation_skill_level: level });
+      const patch = await fetch(`${CORE}/students/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadata: meta })
+      });
+      if (!patch.ok) { alert(await patch.text()); return; }
+      await loadStudents();
+    }
+
+    async function draftSpelling() {
+      document.getElementById('spell-err').style.display = 'none';
+      document.getElementById('spell-ok').style.display = 'none';
+      const sid = document.getElementById('spell-student').value;
+      if (!sid) { alert('Select a student'); return; }
+      const count = parseInt(document.getElementById('spell-count').value, 10) || 10;
+      const btn = document.getElementById('btn-draft');
+      btn.disabled = true;
+      btn.textContent = 'AI is thinking…';
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/dictation-session/draft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_daily_words: count })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        document.getElementById('draft-box').style.display = 'block';
+        document.getElementById('draft-status').textContent =
+          `${data.due_count} words due today. Suggested ${data.suggested_words.length} new words (skill ${data.difficulty}).`;
+        document.getElementById('draft-words').value = data.suggested_words.join(', ');
+      } catch (e) {
+        document.getElementById('spell-err').textContent = String(e.message || e);
+        document.getElementById('spell-err').style.display = 'block';
+      }
+      btn.disabled = false;
+      btn.textContent = 'Ask AI for suggestions';
+    }
+
+    async function commitSpelling() {
+      document.getElementById('spell-err').style.display = 'none';
+      document.getElementById('spell-ok').style.display = 'none';
+      const sid = document.getElementById('spell-student').value;
+      const raw = document.getElementById('draft-words').value;
+      const words = raw.split(',').map(w => w.trim()).filter(Boolean);
+      if (!sid || !words.length) { alert('Select a student and enter words'); return; }
+      const res = await fetch(`${CORE}/students/${sid}/dictation-session/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words })
+      });
+      if (!res.ok) {
+        document.getElementById('spell-err').textContent = await res.text();
+        document.getElementById('spell-err').style.display = 'block';
+        return;
+      }
+      const data = await res.json();
+      document.getElementById('spell-ok').textContent =
+        `${data.sqlite_message} Core assignment ${data.assignment_id}.`;
+      document.getElementById('spell-ok').style.display = 'block';
+      document.getElementById('draft-box').style.display = 'none';
+    }
+
+    window.onload = loadStudents;
+  </script>
+</body>
+</html>

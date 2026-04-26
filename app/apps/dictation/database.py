@@ -71,5 +71,13 @@ def init_db():
 
     
     conn.commit()
+
+    # Link dictation SQLite users to core.students (UUID) for cross-app identity
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN core_student_id TEXT UNIQUE")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
     conn.close()
     print("Database initialized successfully.")
