@@ -17,6 +17,34 @@ that links to each app and to the shared API documentation (`/docs`).
   while Coqui downloads the VITS weights into the container; HTTP may reset
   until you see `Application startup complete` in the logs.
 
+## Core platform (PostgreSQL)
+
+Compose starts **Postgres 16** and sets **`DATABASE_URL`** for the app. On boot,
+**Alembic** runs `upgrade head` (see `docker/entrypoint.sh`) so the **`core`**
+schema is always present.
+
+- **Schema `core`**: shared across apps — students, projects, assignments
+  (with **assignment_items** for tall/step payloads), **grades**, and
+  **skill_observations** (time-series skill signals for humans or AI).
+- **HTTP API**: under **`/core`** (see **`/docs`**). Examples:
+  - `GET /core/students`, `POST /core/students`
+  - `GET /core/students/{id}/assignments`, `POST .../assignments`
+  - `POST .../assignments/{id}/items` — agent-friendly steps (`item_type` +
+    `payload_json`)
+  - `GET/POST .../grades`, `GET/POST .../skills`
+
+Use **`metadata`** JSON on rows for extensibility; use **`rubric_json`** /
+**`rubric_scores_json`** for structured AI or human scoring later.
+
+**Migrations** (from repo root, with sync driver for Alembic):
+
+```bash
+export DATABASE_URL=postgresql+psycopg://homeschool:homeschool@localhost:5432/homeschool
+alembic upgrade head
+```
+
+(App runtime uses **`postgresql+asyncpg://`** in `DATABASE_URL` inside Docker.)
+
 ## Base development stack
 
 This repository provides a Docker Compose foundation for Python FastAPI
@@ -24,6 +52,7 @@ homeschooling apps with Ollama-backed AI and local text-to-speech support.
 
 ### Services
 
+- `postgres`: PostgreSQL for the shared **`core`** schema (port **5432**)
 - `app`: FastAPI app exposed at `http://localhost:4500`
 - `ollama` (optional): not started by default so Docker does not pull the large
   Ollama image unless you ask for it. When enabled, set

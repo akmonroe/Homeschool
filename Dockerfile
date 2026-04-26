@@ -22,8 +22,13 @@ RUN pip install --no-cache-dir --default-timeout=1000 \
         --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir --default-timeout=1000 -r requirements.txt
 
+COPY alembic.ini alembic.ini
+COPY alembic ./alembic
 COPY app ./app
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 4500
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "4500"]

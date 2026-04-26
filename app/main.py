@@ -14,6 +14,8 @@ from starlette.background import BackgroundTask
 
 from app.apps.dictation.dictation_app import app as dictation_subapp
 from app.apps.dictation.dictation_app import setup_dictation
+from app.core.database import core_db_enabled, dispose_engine
+from app.core.router import router as core_router
 
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
@@ -27,6 +29,8 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     setup_dictation()
     yield
+    if core_db_enabled():
+        await dispose_engine()
 
 
 app = FastAPI(
@@ -38,6 +42,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=_lifespan,
 )
+
+app.include_router(core_router)
 
 
 @app.get("/", include_in_schema=False)
@@ -72,12 +78,13 @@ class TextToSpeechRequest(BaseModel):
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health() -> dict:
     return {
         "status": "ok",
         "ollama_base_url": OLLAMA_BASE_URL,
         "default_ollama_model": DEFAULT_OLLAMA_MODEL,
         "tts_engine": "pyttsx3",
+        "core_db_configured": core_db_enabled(),
     }
 
 
