@@ -1,24 +1,63 @@
 import os
 import tempfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 import pyttsx3
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
+from app.apps.dictation.dictation_app import app as dictation_subapp
+from app.apps.dictation.dictation_app import setup_dictation
+from app.core.database import core_db_enabled, dispose_engine
+from app.core.router import router as core_router
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/")
+
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
 DEFAULT_OLLAMA_MODEL = os.getenv("DEFAULT_OLLAMA_MODEL", "llama3.2")
 MAX_TTS_CHARS = int(os.getenv("MAX_TTS_CHARS", "5000"))
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    setup_dictation()
+    yield
+    if core_db_enabled():
+        await dispose_engine()
+
+
 app = FastAPI(
-    title="Homeschool AI App Base",
-    description="Base FastAPI service for AI-enabled homeschooling apps with Ollama and text-to-speech.",
+    title="Homeschool",
+    description=(
+        "Homeschooling app suite: web portal, shared AI (Ollama), and TTS. "
+        "Individual apps are linked from the landing page."
+    ),
     version="0.1.0",
+    lifespan=_lifespan,
 )
+
+app.include_router(core_router)
+
+
+@app.get("/", include_in_schema=False)
+async def landing_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/apps/dictation", include_in_schema=False)
+async def dictation_entry() -> RedirectResponse:
+    return RedirectResponse(url="/apps/dictation/ui/", status_code=307)
+
+
+app.mount("/apps/dictation", dictation_subapp, name="dictation")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 class GenerateRequest(BaseModel):
@@ -39,12 +78,13 @@ class TextToSpeechRequest(BaseModel):
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health() -> dict:
     return {
         "status": "ok",
         "ollama_base_url": OLLAMA_BASE_URL,
         "default_ollama_model": DEFAULT_OLLAMA_MODEL,
         "tts_engine": "pyttsx3",
+        "core_db_configured": core_db_enabled(),
     }
 
 

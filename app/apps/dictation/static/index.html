@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Spelling Dictation</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif; /* Kid-friendly fonts */
+            background-color: #f0f8ff;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 { color: #2c3e50; }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+        }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #bdc3c7;
+            border-radius: 10px;
+            font-size: 1.2em;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+        .btn-check { background-color: #2ecc71; }
+        .btn-listen { background-color: #9b59b6; font-size: 1.5em; padding: 20px; width: 100%;}
+        
+        #feedback-area {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+            font-size: 1.1em;
+            line-height: 1.4;
+        }
+        .correct { background-color: #d5f5e3; color: #1e8449; border: 1px solid #2ecc71; }
+        .incorrect { background-color: #fadedb; color: #a93226; border: 1px solid #e74c3c; }
+        
+        #loading { display: none; color: #7f8c8d; font-style: italic; margin-top: 10px;}
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="login-screen">
+        <h1>Welcome to Spelling!</h1>
+        <a href="/apps/dictation/ui/admin.html" style="color: #bdc3c7; text-decoration: none; font-size: 0.8em; position: absolute; top: 10px; right: 20px;">⚙️ Admin</a>
+        <p>Who is playing today?</p>
+        <select id="user-select">
+            <option value="">Loading students...</option>
+        </select>
+        <button onclick="startSession()">Let's Go!</button>
+    </div>
+
+    <div class="container hidden" id="game-screen">
+        <h2 id="progress-text">Word 1 of ?</h2>
+        
+        <button class="btn-listen" id="btn-listen" onclick="playAudio()">🔊 Listen to Sentence</button>
+
+    <div id="loading">Generating audio... this takes a few seconds...</div>
+        
+        <p id="sentence-hint" style="font-size: 1.4em; font-weight: bold; color: #2c3e50; display: none; margin: 20px 0;"></p>
+        
+        <input type="text" id="spelling-input" placeholder="Type the missing word..." autocomplete="off" spellcheck="false">
+        
+        <div>
+            <button class="btn-check" id="btn-submit" onclick="checkSpelling()">Check Answer</button>
+            <button id="btn-hint" style="background-color: #f39c12; color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 10px; cursor: pointer; display: none;" onclick="getHint()">💡 Get a Hint</button>
+            
+            <button id="btn-next" class="hidden" onclick="loadNextWord()">Next Word ➡️</button>
+        </div>
+
+        <div id="hint-area" style="margin-top: 15px; padding: 15px; background: #fcf3cf; border: 2px solid #f1c40f; border-radius: 10px; color: #7d6608; font-size: 1.1em; display: none;"></div>
+        <div id="feedback-area"></div>
+    </div>
+
+    <audio id="audio-player"></audio>
+
+    <script>
+        const API_BASE = '/apps/dictation';
+        let currentUserId = null;
+        let dueWords = [];
+        let currentIndex = 0;
+        let currentTargetWord = "";
+
+        // --- ADD THIS NEW FUNCTION ---
+        async function fetchUsersOnLoad() {
+            try {
+                const response = await fetch(`${API_BASE}/users`);
+                const data = await response.json();
+                const select = document.getElementById('user-select');
+                
+                // Clear out the "Loading..." text
+                select.innerHTML = ''; 
+
+                if (data.users.length === 0) {
+                    select.innerHTML = '<option value="">No students found. Add them in the API!</option>';
+                    return;
+                }
+
+                // Create an option for every kid in the database
+                data.users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.name;
+                    select.appendChild(option);
+                });
+            } catch (e) {
+                document.getElementById('user-select').innerHTML = '<option value="">Error loading students</option>';
+            }
+        }
+
+// Tell the browser to run this the second the page opens
+        window.onload = fetchUsersOnLoad;
+
+
+        async function startSession() {
+            // 1. Get the selected child's ID
+            currentUserId = document.getElementById('user-select').value;
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+
+            // 2. Ask the database what words they need to practice today
+            try {
+                const response = await fetch(`${API_BASE}/users/${currentUserId}/words/due`);
+                const data = await response.json();
+
+                if (data.count === 0) {
+                    showAllDone();
+                    return;
+                }
+
+                dueWords = data.due_words;
+                currentIndex = 0;
+                loadWordToUI();
+            } catch (e) {
+                alert("Could not connect to the database!");
+            }
+        }
+
+        function loadWordToUI() {
+            currentTargetWord = dueWords[currentIndex].word;
+            document.getElementById('progress-text').innerText = `Word ${currentIndex + 1} of ${dueWords.length}`;
+            document.getElementById('spelling-input').value = "";
+            document.getElementById('feedback-area').style.display = 'none';
+            document.getElementById('btn-next').classList.add('hidden');
+            document.getElementById('btn-submit').classList.remove('hidden');
+            
+            // Auto-focus the text box for tablet typing
+            document.getElementById('spelling-input').focus();
+       
+            // Hide the hint elements for the new word
+            document.getElementById('sentence-hint').style.display = 'none';
+            document.getElementById('btn-hint').style.display = 'none';
+            document.getElementById('hint-area').style.display = 'none';
+        }
+
+        async function playAudio() {
+            const btn = document.getElementById('btn-listen');
+            const loading = document.getElementById('loading');
+            
+            // Disable the button so kids don't spam it while it generates
+            btn.disabled = true;
+            loading.style.display = 'block';
+
+            try {
+                // Tell Gemma 4 and XTTS to create the sentence
+                const response = await fetch(`${API_BASE}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ word: currentTargetWord })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Play the audio
+                    const audioPlayer = document.getElementById('audio-player');
+                    audioPlayer.src = data.audio_url + "?t=" + new Date().getTime();
+                    audioPlayer.play();
+
+                    // Create the blanked sentence using a Regex to catch uppercase/lowercase matches
+                    const regex = new RegExp(`\\b${currentTargetWord}\\b`, 'gi');
+                    const blankedSentence = data.sentence.replace(regex, "_________");
+                    
+                    // Display the sentence and the Hint button
+                    const sentenceEl = document.getElementById('sentence-hint');
+                    sentenceEl.innerText = blankedSentence;
+                    sentenceEl.style.display = 'block';
+                    document.getElementById('btn-hint').style.display = 'inline-block';
+                }
+            
+            } catch (e) {
+                alert("Error generating audio!");
+            }
+
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+
+        async function checkSpelling() {
+            const userInput = document.getElementById('spelling-input').value;
+            if (!userInput) return;
+
+            // Send what the kid typed to the grading endpoint
+            const response = await fetch(`${API_BASE}/users/${currentUserId}/grade`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    target_word: currentTargetWord,
+                    user_input: userInput
+                })
+            });
+            const data = await response.json();
+
+            // Display the AI feedback
+            const feedbackArea = document.getElementById('feedback-area');
+            feedbackArea.style.display = 'block';
+            feedbackArea.innerText = data.feedback;
+
+            // Turn the box green or red
+            if (data.is_correct) {
+                feedbackArea.className = "correct";
+            } else {
+                feedbackArea.className = "incorrect";
+            }
+
+            // Swap the check button for the next button
+            document.getElementById('btn-submit').classList.add('hidden');
+            document.getElementById('btn-next').classList.remove('hidden');
+        }
+
+        async function getHint() {
+            const btn = document.getElementById('btn-hint');
+            btn.innerText = "⏳ Thinking...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/words/${currentTargetWord}/definition`);
+                const data = await res.json();
+                
+                if (res.ok) {
+                    const hintArea = document.getElementById('hint-area');
+                    hintArea.innerText = `Definition: ${data.definition}`;
+                    hintArea.style.display = 'block';
+                    btn.style.display = 'none'; // Hide the button once the hint is shown
+                }
+            } catch (e) {
+                alert("Error getting definition.");
+                btn.innerText = "💡 Get a Hint";
+                btn.disabled = false;
+            }
+        }
+
+        function loadNextWord() {
+            currentIndex++;
+            if (currentIndex < dueWords.length) {
+                loadWordToUI();
+            } else {
+                showAllDone();
+            }
+        }
+
+        function showAllDone() {
+            document.getElementById('progress-text').innerText = "All done for today! 🎉";
+            document.getElementById('btn-listen').style.display = 'none';
+            document.getElementById('spelling-input').style.display = 'none';
+            document.getElementById('btn-next').style.display = 'none';
+            document.getElementById('btn-submit').style.display = 'none';
+            document.getElementById('feedback-area').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

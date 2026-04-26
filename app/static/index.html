@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Homeschool — Apps</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/css/portal.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1>Homeschool</h1>
+        <p class="lead">
+          AI-assisted tools for learning at home. Pick an app to get started, or
+          open the API docs for the shared backend.
+        </p>
+      </header>
+
+      <section class="apps-grid" aria-label="Applications">
+        <article class="card">
+          <span class="badge">Platform</span>
+          <h2>Homeschool API</h2>
+          <p>
+            Shared FastAPI service: health checks, Ollama-backed generation, and
+            local text-to-speech. Used by apps in this suite.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="/docs">Open API docs</a>
+            <a class="btn btn-secondary" href="/health">Health</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <span class="badge">App</span>
+          <h2>Dictation</h2>
+          <p>
+            Spelling and dictation practice with AI-generated sentences and Coqui
+            TTS audio. Student UI and parent admin are under this service.
+          </p>
+          <div class="actions">
+            <a class="btn btn-primary" href="/apps/dictation/ui/">Open app</a>
+            <a class="btn btn-secondary" href="/apps/dictation/docs">API</a>
+          </div>
+        </article>
+      </section>
+
+      <footer class="site">
+        <p>
+          Repository:
+          <a href="https://github.com/akmonroe/Homeschool">github.com/akmonroe/Homeschool</a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
