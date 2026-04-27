@@ -86,14 +86,11 @@ docker compose build app && docker compose up -d
 
 These are **code health** suggestions; none block shipping.
 
-1. **Centralize Ollama settings for dictation**  
-   `OLLAMA_GENERATE_URL` and `DICTATION_OLLAMA_MODEL` are duplicated in `dictation_app.py`, `routers/study.py`, and `session_words.py` with the same `os.getenv` pattern. Extract a tiny module (e.g. `app/apps/dictation/ollama_settings.py`) and import one place.
+1. ~~**Centralize Ollama settings for dictation**~~ — Done: `app/apps/dictation/ollama_settings.py`.
 
-2. **Unify Postgres session dependencies**  
-   `app/core/router.py` defines `get_session()` and `app/core/deps.py` defines `get_core_pg_session()` with identical logic. Prefer **one** FastAPI dependency (e.g. only `get_core_pg_session`) and use it from the core router.
+2. ~~**Unify Postgres session dependencies**~~ — Done: `app/core/router.py` uses `get_core_pg_session` from `app/core/deps.py`.
 
-3. **Remove dead code**  
-   `app/apps/dictation/routers/routes_OLD.py` is not imported anywhere. Delete it or move to a `legacy/` folder outside the package if you need history.
+3. ~~**Remove dead code**~~ — Removed `app/apps/dictation/routers/routes_OLD.py`.
 
 4. **Replace sync `requests` with `httpx` in async routes**  
    `study.py` (and any similar) uses blocking `requests.post` inside `async def`. Use `httpx.AsyncClient` or `run_in_executor` so event loop latency stays predictable under load.

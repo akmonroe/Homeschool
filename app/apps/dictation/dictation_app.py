@@ -14,13 +14,8 @@ from pydantic import BaseModel
 from TTS.api import TTS
 
 from app.apps.dictation import database
+from app.apps.dictation.ollama_settings import DICTATION_OLLAMA_MODEL, OLLAMA_GENERATE_URL
 from app.apps.dictation.routers import dictionary, study, users
-
-OLLAMA_GENERATE_URL = os.getenv(
-    "OLLAMA_GENERATE_URL",
-    f"{os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434').rstrip('/')}/api/generate",
-)
-DICTATION_OLLAMA_MODEL = os.getenv("DICTATION_OLLAMA_MODEL", "gemma4:e4b")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 DATA_DIR = Path(os.getenv("DICTATION_DATA_DIR", "/app/data"))

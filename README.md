@@ -25,7 +25,7 @@ that links to each app and to the shared API documentation (`/docs`).
   **`dictation-data`** Docker volume (`/app/data` in the container).
 
   Dictation uses **`DICTATION_OLLAMA_MODEL`** (default `gemma4:e4b`) for
-  `/api/generate` calls to your host Ollama. On first start, **uvicorn waits**
+  **`POST /apps/dictation/generate`** (sentence text via Ollama). On first start, **uvicorn waits**
   while Coqui downloads the VITS weights into the container; HTTP may reset
   until you see `Application startup complete` in the logs.
 

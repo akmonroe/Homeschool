@@ -123,6 +123,7 @@ Suite-level **assignments** (e.g. from platform admin when committing an AI word
 | Dictation HTTP: dictionary | `app/apps/dictation/routers/dictionary.py` (uses `get_core_pg_session`) |
 | Dictation HTTP: study | `app/apps/dictation/routers/study.py` |
 | Progress API | `app/apps/dictation/routers/users.py` (`/users/{id}/progress` → Postgres) |
+| Dictation Ollama env | `app/apps/dictation/ollama_settings.py` |
 | ORM models | `app/core/models.py` |
 | FastAPI Postgres session dep | `app/core/deps.py` |
 | Platform admin UI (students, AI words, progress chart, dictionary) | `app/static/admin/index.html` |
