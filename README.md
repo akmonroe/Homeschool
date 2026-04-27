@@ -6,8 +6,8 @@ grow with multiple apps; the first integrated app will be **Dictation**.
 
 | Doc | Contents |
 |-----|----------|
-| [docs/DATABASE.md](docs/DATABASE.md) | Postgres `core` vs SQLite dictation, tables, bulk import |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | URLs, services, admin map, Docker, simplification ideas |
+| [docs/DATABASE.md](docs/DATABASE.md) | Postgres `core` vs SQLite dictation, tables, bulk import, code map |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | URLs, dictation generate/TTS, env vars, Docker, refactoring backlog |
 
 ## Web portal
 
@@ -30,8 +30,9 @@ that links to each app and to the shared API documentation (`/docs`).
   until you see `Application startup complete` in the logs.
 
   **TTS (VITS + ffmpeg):** `DICTATION_TTS_SPEAKER` (VCTK id, default `p225`), `DICTATION_TTS_PLAYBACK_TEMPO`
-  (default `0.58` — lower is slower/clearer), optional `DICTATION_TTS_WORD_PLAYBACK_TEMPO`. Re-listening to the
-  same word reuses the cached sentence and audio until the next word.
+  (default `0.58` — lower is slower/clearer), optional `DICTATION_TTS_WORD_PLAYBACK_TEMPO`. Speech is synthesized as one clip (`split_sentences=false`), then slowed with ffmpeg `atempo` (falls back to raw VITS if ffmpeg fails).
+
+  **`POST /apps/dictation/generate`** accepts JSON `{ "word": "<surface form>", "regenerate": false }`. With **`regenerate: false`** (student UI default), the server **reuses** the last sentence and WAV files for that spelling word until practice moves on — so “Listen to Sentence” does not call Ollama again. Response includes **`revision`** (increment when a new sentence is synthesized), **`from_cache`**, plus **`sentence`**, **`audio_url`**, **`word_audio_url`**.
 
 ## Core platform (PostgreSQL)
 

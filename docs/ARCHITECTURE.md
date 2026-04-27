@@ -32,6 +32,19 @@ A **single** FastAPI application (`app/main.py`) owns:
 - **`/core/*`** — shared Postgres domain (students, suite assignments, dictation session draft/commit)
 - **`/apps/dictation/*`** — dictation REST (users, words, study, generate, audio)
 
+### Dictation practice audio (`POST /apps/dictation/generate`)
+
+| Field / behavior | Notes |
+|------------------|--------|
+| Request body | `word` (string, surface form for TTS), `regenerate` (bool, default **false**) |
+| Ollama | Runs only when there is no cache for this word or `regenerate` is **true** |
+| Response | `sentence`, `audio_url`, `word_audio_url`, `revision` (int), `from_cache` (bool) |
+| On-disk WAVs | Fixed paths under `DICTATION_DATA_DIR` (default `/app/data`): sentence + word-only clips; volume **`dictation-data`** |
+
+Implementation: `app/apps/dictation/dictation_app.py` (cache + route), tempo helpers in `app/apps/dictation/dictation_tts.py`, settings in `ollama_settings.py`.
+
+**Concurrency note:** the generate cache is **in-process and keyed by normalized word**; the two WAV files are global for the app. That is fine for a single family on one container; a future hardening step is per-session or per-student file names (or no shared mutating files).
+
 ---
 
 ## 3. Data stores
@@ -82,9 +95,9 @@ docker compose build app && docker compose up -d
 
 ---
 
-## 7. Simplification opportunities (recommended order)
+## 7. Refactoring backlog (recommended order)
 
-These are **code health** suggestions; none block shipping.
+These are **code health** improvements; none block shipping unless you need multi-tenant isolation.
 
 1. ~~**Centralize Ollama settings for dictation**~~ — Done: `app/apps/dictation/ollama_settings.py`.
 
@@ -93,14 +106,20 @@ These are **code health** suggestions; none block shipping.
 3. ~~**Remove dead code**~~ — Removed `app/apps/dictation/routers/routes_OLD.py`.
 
 4. **Replace sync `requests` with `httpx` in async routes**  
-   `study.py` (and any similar) uses blocking `requests.post` inside `async def`. Use `httpx.AsyncClient` or `run_in_executor` so event loop latency stays predictable under load.
+   `study.py` uses blocking `requests.post` inside `async def`. Prefer `httpx.AsyncClient` or `asyncio.to_thread` so the event loop stays responsive under load. Optional: same for `session_words.py` / `dictation_app.py` if those paths grow.
 
-5. **Optional: split admin front-end**  
-   `app/static/admin/index.html` is large (tabs + Chart.js + three API surfaces). For maintainability you could move JS to `app/static/admin/admin.js` and keep HTML as shell only—no behavior change.
+5. **Extract dictation “generate” orchestration**  
+   Move sentence cache, lock, Ollama call, VITS + ffmpeg pipeline from `dictation_app.py` into e.g. `dictation_generate.py` or `dictation_service.py` so the FastAPI route stays thin and is easier to test.
 
-6. **Optional: service layer for dictation**  
-   `dictation_lexemes.py` is already the data access layer; consider a thin `dictation_service.py` that owns “generate sentence + TTS files” so `dictation_app.py` routes stay small.
+6. **Safer audio file naming for concurrent users**  
+   Today two fixed WAV paths serve the last generated clip. For multiple simultaneous students, use unique filenames (UUID / session id) or stream bytes from memory; optionally key the in-memory cache by `(word, student_id)` if sentence-per-student matters.
+
+7. **Optional: split admin front-end**  
+   Move JS from `app/static/admin/index.html` to `app/static/admin/admin.js` (Chart.js + four tabs).
+
+8. **Optional: consolidate duplicate env documentation**  
+   Keep `docker-compose.yml` as source of truth for optional env vars; README/ARCHITECTURE link to it to reduce drift.
 
 ---
 
-**Last reviewed:** dictation `ollama_settings.py`, unified `get_core_pg_session`, removal of `routes_OLD.py`.
+**Last reviewed:** dictation TTS (`dictation_tts.py`, ffmpeg tempo, generate cache + `regenerate` / `revision`), platform admin dictionary summaries.
