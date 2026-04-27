@@ -10,3 +10,4 @@ sqlalchemy[asyncio]>=2.0
 asyncpg
 alembic
 psycopg[binary]
+beautifulsoup4

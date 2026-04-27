@@ -12,11 +12,17 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import core_db_enabled, session_scope
 from app.core.models import Assignment, AssignmentItem, Grade, Project, SkillObservation, Student
+from app.apps.dictation import session_words as dictation_session
 from app.core.schemas import (
+    DictationProfileOut,
     AssignmentCreate,
     AssignmentItemCreate,
     AssignmentItemOut,
     AssignmentOut,
+    DictationSessionCommitRequest,
+    DictationSessionCommitResponse,
+    DictationSessionDraftRequest,
+    DictationSessionDraftResponse,
     GradeCreate,
     GradeOut,
     ProjectCreate,
@@ -57,14 +63,24 @@ async def list_students(session: SessionDep, limit: int = Query(100, ge=1, le=50
 
 @router.post("/students", response_model=StudentOut)
 async def create_student(session: SessionDep, body: StudentCreate):
+    meta = dict(body.metadata or {})
+    level = int(meta.get("dictation_skill_level", 5))
+    level = max(1, min(10, level))
     row = Student(
         display_name=body.display_name,
         notes=body.notes,
-        metadata_=body.metadata,
+        metadata_=meta,
     )
     session.add(row)
     await session.flush()
     await session.refresh(row)
+    try:
+        dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Student saved in core but dictation profile sync failed: {exc}",
+        ) from exc
     return row
 
 
@@ -89,7 +105,117 @@ async def update_student(session: SessionDep, student_id: uuid.UUID, body: Stude
         row.metadata_ = body.metadata
     await session.flush()
     await session.refresh(row)
+    meta = dict(row.metadata_ or {})
+    level = int(meta.get("dictation_skill_level", 5))
+    level = max(1, min(10, level))
+    try:
+        dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+    except Exception:
+        pass
     return row
+
+
+@router.get("/students/{student_id}/dictation-profile", response_model=DictationProfileOut)
+async def get_dictation_profile(session: SessionDep, student_id: uuid.UUID):
+    row = await _require_student(session, student_id)
+    meta = dict(row.metadata_ or {})
+    level = int(meta.get("dictation_skill_level", 5))
+    level = max(1, min(10, level))
+    try:
+        uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return DictationProfileOut(
+        student_id=row.id,
+        dictation_user_id=uid,
+        display_name=row.display_name,
+        dictation_skill_level=level,
+    )
+
+
+@router.post(
+    "/students/{student_id}/dictation-session/draft",
+    response_model=DictationSessionDraftResponse,
+)
+async def draft_dictation_word_session(
+    session: SessionDep,
+    student_id: uuid.UUID,
+    body: DictationSessionDraftRequest,
+):
+    row = await _require_student(session, student_id)
+    meta = dict(row.metadata_ or {})
+    level = int(meta.get("dictation_skill_level", 5))
+    level = max(1, min(10, level))
+    try:
+        uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+        data = await dictation_session.draft_daily_session_dictation(uid, body.target_daily_words)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return DictationSessionDraftResponse(
+        due_count=data["due_count"],
+        suggested_words=data["suggested_words"],
+        difficulty=data["difficulty"],
+        dictation_user_id=uid,
+    )
+
+
+@router.post(
+    "/students/{student_id}/dictation-session/commit",
+    response_model=DictationSessionCommitResponse,
+)
+async def commit_dictation_word_session(
+    session: SessionDep,
+    student_id: uuid.UUID,
+    body: DictationSessionCommitRequest,
+):
+    row = await _require_student(session, student_id)
+    meta = dict(row.metadata_ or {})
+    level = int(meta.get("dictation_skill_level", 5))
+    level = max(1, min(10, level))
+    words = [w.strip() for w in body.words if w and str(w).strip()]
+    if not words:
+        raise HTTPException(status_code=400, detail="No words to assign")
+    try:
+        uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+        result = await dictation_session.commit_daily_session_dictation(uid, words)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    assign = Assignment(
+        student_id=student_id,
+        project_id=None,
+        title="Spelling words (dictation)",
+        app_slug="dictation",
+        status="assigned",
+        instructions="Words assigned from Homeschool admin for dictation practice.",
+        rubric_json=None,
+        metadata_={"dictation_user_id": uid, "word_count": len(words)},
+    )
+    session.add(assign)
+    await session.flush()
+    for i, w in enumerate(words):
+        if not w:
+            continue
+        session.add(
+            AssignmentItem(
+                assignment_id=assign.id,
+                sequence=i,
+                item_type="spelling_word",
+                payload_json={"word": w.lower()},
+            )
+        )
+    await session.flush()
+    await session.refresh(assign)
+    return DictationSessionCommitResponse(
+        dictation_user_id=uid,
+        assignment_id=assign.id,
+        assigned_count=result["assigned_count"],
+        message=f"Added {result['assigned_count']} new word assignment(s) in Postgres (already-assigned words skipped).",
+    )
 
 
 @router.get("/students/{student_id}/projects", response_model=list[ProjectOut])

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Parent Dashboard</title>
+    <title>Dictation — Dictionary &amp; progress</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -19,6 +19,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
         }
 
         .header a {
@@ -99,19 +101,23 @@
 <body>
 
     <div class="header">
-        <h1>Parent Dashboard</h1>
-        <a href="/apps/dictation/ui">🏠 Back to Student App</a>
+        <h1>Dictation admin</h1>
+        <div>
+            <a href="/admin/">⚙️ Platform admin (students &amp; AI words)</a>
+            <a href="/apps/dictation/ui" style="margin-left:8px">🏠 Student app</a>
+            <a href="/apps/dictation/ui/review.html" style="margin-left:8px">📖 Review words</a>
+        </div>
     </div>
 
     <div class="tabs">
         <button class="active" onclick="switchTab('progress')">📈 Progress Report</button>
         <button onclick="switchTab('words')">📚 Word Manager</button>
-        <button onclick="switchTab('students')">👩‍🎓 Student Manager</button>
-        <button onclick="switchTab('assignments')">📝 Assignment Builder</button>
     </div>
 
     <div id="progress" class="panel active">
-        <label for="student-select">Select Student: </label>
+        <p style="color:#7f8c8d;font-size:0.95rem">Students and AI word assignment live in
+            <a href="/admin/">platform admin</a>. Pick a dictation profile here for charts.</p>
+        <label for="student-select">Select student (dictation): </label>
         <select id="student-select" onchange="loadProgress()">
             <option>Loading...</option>
         </select>
@@ -147,83 +153,10 @@
         </table>
     </div>
 
-    <div id="students" class="panel">
-        <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
-
-            <div
-                style="background: #f8f9fa; padding: 20px; border-radius: 5px; border: 1px solid #ddd; flex: 1; min-width: 250px;">
-                <h3 style="margin-top: 0;">Add New Student</h3>
-                <label for="new-student-name" style="display:block; margin-bottom: 5px;">Student Name:</label>
-                <input type="text" id="new-student-name" placeholder="e.g. Alex"
-                    style="width: 100%; margin-bottom: 15px; box-sizing: border-box;">
-
-                <label for="new-student-level" style="display:block; margin-bottom: 5px;">Skill Level (1-10):</label>
-                <input type="number" id="new-student-level" min="1" max="10" value="1"
-                    style="width: 100%; margin-bottom: 15px; box-sizing: border-box;">
-
-                <button onclick="addStudent()"
-                    style="background-color: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%;">➕
-                    Create Profile</button>
-            </div>
-
-            <div style="flex: 2; min-width: 300px;">
-                <h3 style="margin-top: 0;">Current Roster</h3>
-                <table id="student-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Skill Level</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
-        </div>
-    </div>
-
-    <div id="assignments" class="panel">
-        <div style="max-width: 600px;">
-            <h3 style="margin-top: 0;">Daily Lesson Planner</h3>
-            <p>Review and edit the AI's recommendations before assigning them to a student.</p>
-
-            <div
-                style="background: #f8f9fa; padding: 20px; border-radius: 5px; border: 1px solid #ddd; margin-bottom: 20px;">
-                <label for="assign-student" style="display:block; margin-bottom: 5px;">1. Select Student:</label>
-                <select id="assign-student" style="width: 100%; margin-bottom: 15px;">
-                    <option>Loading...</option>
-                </select>
-
-                <label for="assign-count" style="display:block; margin-bottom: 5px;">2. Total Words for Today's
-                    Lesson:</label>
-                <input type="number" id="assign-count" value="10" min="1" max="50"
-                    style="width: 100%; margin-bottom: 15px; box-sizing: border-box;">
-
-                <button onclick="draftSession()"
-                    style="background-color: #9b59b6; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%;"
-                    id="btn-draft">🪄 Ask AI for Suggestions</button>
-            </div>
-
-            <div id="draft-review-area" style="display: none;">
-                <p id="draft-status" style="font-weight: bold; color: #2c3e50;"></p>
-                <label for="draft-words" style="display:block; margin-bottom: 5px;">3. Review & Edit (Comma
-                    separated):</label>
-                <textarea id="draft-words" rows="4"
-                    style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 1.1em; font-family: monospace; margin-bottom: 15px; box-sizing: border-box;"></textarea>
-
-                <button onclick="commitSession()"
-                    style="background-color: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 1.1em;">✅
-                    Approve and Assign Words</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         const API_BASE = '/apps/dictation';
         let chartInstance = null;
 
-        // --- Tab Switching Logic ---
         function switchTab(tabId) {
             document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
@@ -233,68 +166,42 @@
             if (tabId === 'words') loadWords();
         }
 
-        // --- Progress Chart Logic ---
         async function loadStudents() {
             try {
                 const res = await fetch(`${API_BASE}/users`);
                 const data = await res.json();
-
-                // 1. Target all THREE UI elements
                 const progressSelect = document.getElementById('student-select');
-                const rosterTable = document.querySelector('#student-table tbody');
-                const assignSelect = document.getElementById('assign-student');
-
-                // 2. Clear out the old "Loading..." data
                 progressSelect.innerHTML = '';
-                rosterTable.innerHTML = '';
-                if (assignSelect) assignSelect.innerHTML = ''; // Check if it exists just in case
 
-                // If the database is empty
                 if (data.users.length === 0) {
-                    progressSelect.innerHTML = '<option value="">No students found</option>';
-                    if (assignSelect) assignSelect.innerHTML = '<option value="">No students found</option>';
-                    rosterTable.innerHTML = '<tr><td colspan="3" style="text-align:center;">No students yet. Add one!</td></tr>';
+                    progressSelect.innerHTML = '<option value="">No dictation profiles yet — add students in platform admin</option>';
                     return;
                 }
 
-                // 3. Loop through the database and fill everything!
                 data.users.forEach(u => {
-                    // Add to Progress dropdown
                     progressSelect.innerHTML += `<option value="${u.id}">${u.name}</option>`;
-
-                    // Add to Assignment dropdown
-                    if (assignSelect) assignSelect.innerHTML += `<option value="${u.id}">${u.name}</option>`;
-
-                    // Add to Roster table
-                    rosterTable.innerHTML += `
-                        <tr>
-                            <td>${u.id}</td>
-                            <td><strong>${u.name}</strong></td>
-                            <td>Level ${u.difficulty_level}</td>
-                        </tr>
-                    `;
                 });
 
-                // 4. Load the graph for the first student in the list
                 if (data.users.length > 0) {
                     loadProgress();
                 }
             } catch (e) {
                 console.error("Failed to load students:", e);
-                alert("Could not load students from the database.");
+                document.getElementById('student-select').innerHTML = '<option value="">Error loading</option>';
             }
         }
 
         async function loadProgress() {
             const userId = document.getElementById('student-select').value;
+            if (!userId) return;
             const res = await fetch(`${API_BASE}/users/${userId}/progress`);
             const data = await res.json();
+            const report = data.report || [];
 
-            // Format data for Chart.js (Reverse so oldest is left, newest is right)
-            const labels = data.report.map(r => r.date).reverse();
-            const scores = data.report.map(r => r.accuracy_percent).reverse();
+            const labels = report.map(r => r.date).reverse();
+            const scores = report.map(r => r.accuracy_percent).reverse();
 
-            if (chartInstance) chartInstance.destroy(); // Clear old chart
+            if (chartInstance) chartInstance.destroy();
 
             const ctx = document.getElementById('progressChart').getContext('2d');
             chartInstance = new Chart(ctx, {
@@ -314,7 +221,6 @@
             });
         }
 
-        // --- Word Manager Logic ---
         async function loadWords() {
             const res = await fetch(`${API_BASE}/words`);
             const data = await res.json();
@@ -354,13 +260,10 @@
                 return;
             }
 
-            // We use FormData to package the file for the backend
             const formData = new FormData();
             formData.append("file", file);
 
             try {
-                // Note: We do NOT set the 'Content-Type' header here. 
-                // The browser automatically sets it to 'multipart/form-data' when using FormData.
                 const res = await fetch(`${API_BASE}/words/bulk-upload`, {
                     method: 'POST',
                     body: formData
@@ -369,9 +272,9 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    alert(data.message); // E.g., "Processed 20 words."
-                    fileInput.value = ""; // Clear the file picker
-                    loadWords(); // Instantly refresh the table below!
+                    alert(data.message);
+                    fileInput.value = "";
+                    loadWords();
                 } else {
                     alert("Upload failed: " + data.detail);
                 }
@@ -380,108 +283,6 @@
             }
         }
 
-        // --- Student Manager Logic ---
-        async function addStudent() {
-            const nameInput = document.getElementById('new-student-name');
-            const levelInput = document.getElementById('new-student-level');
-
-            const name = nameInput.value.trim();
-            const level = parseInt(levelInput.value);
-
-            if (!name) {
-                alert("Please enter a name!");
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API_BASE}/users`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: name,
-                        difficulty_level: level
-                    })
-                });
-
-                const data = await res.json();
-
-                if (res.ok) {
-                    alert(data.message); // E.g., "Profile created for Alex!"
-                    nameInput.value = ""; // Clear the form
-                    levelInput.value = "1";
-                    loadStudents(); // Refresh the dropdowns!
-                } else {
-                    alert("Failed: " + data.detail);
-                }
-            } catch (e) {
-                alert("Error connecting to server.");
-            }
-        }
-
-        // --- Assignment Builder Logic ---
-        async function draftSession() {
-            const userId = document.getElementById('assign-student').value;
-            const count = parseInt(document.getElementById('assign-count').value);
-            const btn = document.getElementById('btn-draft');
-
-            btn.innerText = "⏳ AI is thinking...";
-            btn.disabled = true;
-
-            try {
-                const res = await fetch(`${API_BASE}/users/${userId}/session/draft`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target_daily_words: count })
-                });
-                const data = await res.json();
-
-                if (res.ok) {
-                    document.getElementById('draft-review-area').style.display = 'block';
-                    document.getElementById('draft-status').innerText =
-                        `They have ${data.due_count} words due for review. The AI suggests adding these ${data.suggested_words.length} new words:`;
-
-                    // Populate the textarea for human editing
-                    document.getElementById('draft-words').value = data.suggested_words.join(", ");
-                }
-            } catch (e) {
-                alert("Error getting draft from AI.");
-            }
-
-            btn.innerText = "🪄 Ask AI for Suggestions";
-            btn.disabled = false;
-        }
-
-        async function commitSession() {
-            const userId = document.getElementById('assign-student').value;
-            const rawWords = document.getElementById('draft-words').value;
-
-            // Turn the comma string back into an array
-            const finalWords = rawWords.split(",").map(w => w.trim()).filter(w => w.length > 0);
-
-            if (finalWords.length === 0) {
-                alert("The word list is empty!");
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API_BASE}/users/${userId}/session/commit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ words: finalWords })
-                });
-                const data = await res.json();
-
-                if (res.ok) {
-                    alert("Success! " + data.message);
-                    document.getElementById('draft-review-area').style.display = 'none';
-                    document.getElementById('draft-words').value = "";
-                }
-            } catch (e) {
-                alert("Error saving words.");
-            }
-        }
-
-        // Boot up
         window.onload = loadStudents;
     </script>
 </body>

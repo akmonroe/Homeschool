@@ -141,6 +141,35 @@ class SkillObservationCreate(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class DictationSessionDraftRequest(BaseModel):
+    target_daily_words: int = Field(10, ge=1, le=50)
+
+
+class DictationSessionDraftResponse(BaseModel):
+    due_count: int
+    suggested_words: list[str]
+    difficulty: int
+    dictation_user_id: int
+
+
+class DictationSessionCommitRequest(BaseModel):
+    words: list[str]
+
+
+class DictationProfileOut(BaseModel):
+    student_id: uuid.UUID
+    dictation_user_id: int
+    display_name: str
+    dictation_skill_level: int
+
+
+class DictationSessionCommitResponse(BaseModel):
+    dictation_user_id: int
+    assignment_id: uuid.UUID
+    assigned_count: int
+    message: str
+
+
 class SkillObservationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

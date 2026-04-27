@@ -48,6 +48,15 @@
         button:active { transform: scale(0.95); }
         .btn-check { background-color: #2ecc71; }
         .btn-listen { background-color: #9b59b6; font-size: 1.5em; padding: 20px; width: 100%;}
+        .btn-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 10px; }
+        .btn-row button { flex: 1; min-width: 140px; font-size: 1.05em; padding: 12px 16px; }
+        .btn-word { background-color: #8e44ad; }
+        .btn-again { background-color: #16a085; }
+        .btn-help { background-color: #e67e22; }
+        #help-area { margin-top: 14px; padding: 14px; background: #fef9e7; border: 2px solid #f4d03f; border-radius: 10px; text-align: left; font-size: 1.05em; display: none; }
+        #help-area h4 { margin: 12px 0 6px; font-size: 0.95em; color: #7d6608; }
+        #help-area p { margin: 0 0 8px; line-height: 1.4; }
+        #help-area ul { margin: 4px 0 0 1.2em; padding: 0; }
         
         #feedback-area {
             margin-top: 20px;
@@ -68,7 +77,10 @@
 
     <div class="container" id="login-screen">
         <h1>Welcome to Spelling!</h1>
-        <a href="/apps/dictation/ui/admin.html" style="color: #bdc3c7; text-decoration: none; font-size: 0.8em; position: absolute; top: 10px; right: 20px;">⚙️ Admin</a>
+        <div style="position: absolute; top: 10px; right: 20px; font-size: 0.8em;">
+            <a href="/apps/dictation/ui/review.html" style="color: #bdc3c7; text-decoration: none; margin-right: 12px;">📖 Words</a>
+            <a href="/admin/" style="color: #bdc3c7; text-decoration: none;">⚙️ Admin</a>
+        </div>
         <p>Who is playing today?</p>
         <select id="user-select">
             <option value="">Loading students...</option>
@@ -80,6 +92,10 @@
         <h2 id="progress-text">Word 1 of ?</h2>
         
         <button class="btn-listen" id="btn-listen" onclick="playAudio()">🔊 Listen to Sentence</button>
+        <div class="btn-row">
+            <button type="button" class="btn-word" id="btn-word-only" disabled onclick="playWordOnly()">🎯 Hear Word Only</button>
+            <button type="button" class="btn-again" id="btn-sentence-again" disabled onclick="playSentenceAgain()">🔁 Sentence Again</button>
+        </div>
 
     <div id="loading">Generating audio... this takes a few seconds...</div>
         
@@ -89,11 +105,12 @@
         
         <div>
             <button class="btn-check" id="btn-submit" onclick="checkSpelling()">Check Answer</button>
-            <button id="btn-hint" style="background-color: #f39c12; color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 10px; cursor: pointer; display: none;" onclick="getHint()">💡 Get a Hint</button>
+            <button id="btn-hint" class="btn-help" style="color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 10px; cursor: pointer; display: none;" onclick="getHint()">💡 Definition, Etymology &amp; Spelling Tips</button>
             
             <button id="btn-next" class="hidden" onclick="loadNextWord()">Next Word ➡️</button>
         </div>
 
+        <div id="help-area"></div>
         <div id="hint-area" style="margin-top: 15px; padding: 15px; background: #fcf3cf; border: 2px solid #f1c40f; border-radius: 10px; color: #7d6608; font-size: 1.1em; display: none;"></div>
         <div id="feedback-area"></div>
     </div>
@@ -106,6 +123,28 @@
         let dueWords = [];
         let currentIndex = 0;
         let currentTargetWord = "";
+        /** Surface form for TTS and blank length (from server display_word). */
+        let currentDisplayWord = "";
+        let lastSentenceAudioUrl = "";
+        let lastWordAudioUrl = "";
+        let audioReady = false;
+
+        function escapeRegExp(s) {
+            return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function resolveAudioUrl(pathOrUrl) {
+            if (!pathOrUrl) return '';
+            if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) return pathOrUrl;
+            if (pathOrUrl.startsWith('/')) return pathOrUrl;
+            return `${API_BASE}/${pathOrUrl.replace(/^\/+/, '')}`;
+        }
 
         // --- ADD THIS NEW FUNCTION ---
         async function fetchUsersOnLoad() {
@@ -163,7 +202,18 @@
         }
 
         function loadWordToUI() {
-            currentTargetWord = dueWords[currentIndex].word;
+            const row = dueWords[currentIndex];
+            currentTargetWord = row.word;
+            let dw = (row.display_word && String(row.display_word).trim()) ? String(row.display_word).trim() : null;
+            if (dw && dw.toLowerCase() === currentTargetWord) {
+                dw = currentTargetWord.charAt(0).toUpperCase() + currentTargetWord.slice(1);
+            }
+            currentDisplayWord = dw || (currentTargetWord.charAt(0).toUpperCase() + currentTargetWord.slice(1));
+            audioReady = false;
+            lastSentenceAudioUrl = "";
+            lastWordAudioUrl = "";
+            document.getElementById('btn-word-only').disabled = true;
+            document.getElementById('btn-sentence-again').disabled = true;
             document.getElementById('progress-text').innerText = `Word ${currentIndex + 1} of ${dueWords.length}`;
             document.getElementById('spelling-input').value = "";
             document.getElementById('feedback-area').style.display = 'none';
@@ -177,6 +227,10 @@
             document.getElementById('sentence-hint').style.display = 'none';
             document.getElementById('btn-hint').style.display = 'none';
             document.getElementById('hint-area').style.display = 'none';
+            document.getElementById('help-area').style.display = 'none';
+            document.getElementById('help-area').innerHTML = '';
+            document.getElementById('btn-hint').innerText = '💡 Definition, Etymology & Spelling Tips';
+            document.getElementById('btn-hint').disabled = false;
         }
 
         async function playAudio() {
@@ -192,25 +246,32 @@
                 const response = await fetch(`${API_BASE}/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ word: currentTargetWord })
+                    body: JSON.stringify({ word: currentDisplayWord })
                 });
                 const data = await response.json();
 
                 if (data.status === 'success') {
-                    // Play the audio
+                    const ts = Date.now();
+                    lastSentenceAudioUrl = resolveAudioUrl(data.audio_url);
+                    lastWordAudioUrl = resolveAudioUrl(data.word_audio_url || '/apps/dictation/audio/word');
+
                     const audioPlayer = document.getElementById('audio-player');
-                    audioPlayer.src = data.audio_url + "?t=" + new Date().getTime();
+                    const sep = lastSentenceAudioUrl.includes('?') ? '&' : '?';
+                    audioPlayer.src = lastSentenceAudioUrl + sep + 't=' + ts;
                     audioPlayer.play();
 
-                    // Create the blanked sentence using a Regex to catch uppercase/lowercase matches
-                    const regex = new RegExp(`\\b${currentTargetWord}\\b`, 'gi');
-                    const blankedSentence = data.sentence.replace(regex, "_________");
+                    const blankLen = Math.max(currentDisplayWord.replace(/\s/g, '').length, 3);
+                    const blank = '_'.repeat(blankLen);
+                    const regex = new RegExp(`\\b${escapeRegExp(currentDisplayWord)}\\b|\\b${escapeRegExp(currentTargetWord)}\\b`, 'gi');
+                    const blankedSentence = data.sentence.replace(regex, blank);
                     
-                    // Display the sentence and the Hint button
                     const sentenceEl = document.getElementById('sentence-hint');
                     sentenceEl.innerText = blankedSentence;
                     sentenceEl.style.display = 'block';
                     document.getElementById('btn-hint').style.display = 'inline-block';
+                    audioReady = true;
+                    document.getElementById('btn-word-only').disabled = false;
+                    document.getElementById('btn-sentence-again').disabled = false;
                 }
             
             } catch (e) {
@@ -219,6 +280,22 @@
 
             btn.disabled = false;
             loading.style.display = 'none';
+        }
+
+        function playSentenceAgain() {
+            if (!audioReady || !lastSentenceAudioUrl) return;
+            const audioPlayer = document.getElementById('audio-player');
+            const sep = lastSentenceAudioUrl.includes('?') ? '&' : '?';
+            audioPlayer.src = lastSentenceAudioUrl + sep + 't=' + Date.now();
+            audioPlayer.play();
+        }
+
+        function playWordOnly() {
+            if (!audioReady || !lastWordAudioUrl) return;
+            const audioPlayer = document.getElementById('audio-player');
+            const sep = lastWordAudioUrl.includes('?') ? '&' : '?';
+            audioPlayer.src = lastWordAudioUrl + sep + 't=' + Date.now();
+            audioPlayer.play();
         }
 
         async function checkSpelling() {
@@ -255,22 +332,39 @@
 
         async function getHint() {
             const btn = document.getElementById('btn-hint');
-            btn.innerText = "⏳ Thinking...";
+            btn.innerText = "⏳ Loading…";
             btn.disabled = true;
 
             try {
-                const res = await fetch(`${API_BASE}/words/${currentTargetWord}/definition`);
+                const res = await fetch(`${API_BASE}/words/${encodeURIComponent(currentTargetWord)}/study-hints`);
                 const data = await res.json();
-                
+
                 if (res.ok) {
-                    const hintArea = document.getElementById('hint-area');
-                    hintArea.innerText = `Definition: ${data.definition}`;
-                    hintArea.style.display = 'block';
-                    btn.style.display = 'none'; // Hide the button once the hint is shown
+                    const help = document.getElementById('help-area');
+                    const tricks = Array.isArray(data.spelling_tricks) ? data.spelling_tricks : [];
+                    let tricksHtml = '';
+                    if (tricks.length) {
+                        tricksHtml = '<ul>' + tricks.map(t => '<li>' + escapeHtml(String(t)) + '</li>').join('') + '</ul>';
+                    } else {
+                        tricksHtml = '<p style="margin:0;color:#7f8c8d">No spelling tips on file for this word yet.</p>';
+                    }
+                    const etRaw = (data.etymology && String(data.etymology).trim()) ? String(data.etymology).trim() : '';
+                    const etHtmlBody = etRaw
+                        ? etRaw.split(/\n/).map(line => escapeHtml(line)).join('<br>')
+                        : '';
+                    let etHtml = etRaw
+                        ? '<h4>Word history (etymology)</h4><p>' + etHtmlBody + '</p>'
+                        : '<h4>Word history (etymology)</h4><p style="color:#7f8c8d">No etymology on file yet.</p>';
+                    help.innerHTML =
+                        '<h4>Definition</h4><p>' + escapeHtml(data.definition || '') + '</p>' +
+                        etHtml +
+                        '<h4>Spelling tips</h4>' + tricksHtml;
+                    help.style.display = 'block';
+                    btn.style.display = 'none';
                 }
             } catch (e) {
-                alert("Error getting definition.");
-                btn.innerText = "💡 Get a Hint";
+                alert("Could not load study hints.");
+                btn.innerText = '💡 Definition, Etymology & Spelling Tips';
                 btn.disabled = false;
             }
         }
@@ -287,9 +381,13 @@
         function showAllDone() {
             document.getElementById('progress-text').innerText = "All done for today! 🎉";
             document.getElementById('btn-listen').style.display = 'none';
+            document.getElementById('btn-word-only').style.display = 'none';
+            document.getElementById('btn-sentence-again').style.display = 'none';
+            document.querySelector('.btn-row').style.display = 'none';
             document.getElementById('spelling-input').style.display = 'none';
             document.getElementById('btn-next').style.display = 'none';
             document.getElementById('btn-submit').style.display = 'none';
+            document.getElementById('btn-hint').style.display = 'none';
             document.getElementById('feedback-area').style.display = 'none';
         }
     </script>

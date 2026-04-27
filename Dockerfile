@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir --default-timeout=1000 \
 COPY alembic.ini alembic.ini
 COPY alembic ./alembic
 COPY app ./app
+COPY scripts ./scripts
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

@@ -56,6 +56,30 @@ async def dictation_entry() -> RedirectResponse:
     return RedirectResponse(url="/apps/dictation/ui/", status_code=307)
 
 
+_admin_dir = STATIC_DIR / "admin"
+_admin_index = _admin_dir / "index.html"
+
+
+@app.get("/admin", include_in_schema=False)
+async def admin_no_slash() -> RedirectResponse:
+    """Always use trailing slash so relative paths and caches behave consistently."""
+    return RedirectResponse(url="/admin/", status_code=307)
+
+
+@app.get("/admin/", include_in_schema=False)
+async def admin_index() -> FileResponse:
+    """Platform admin UI (explicit route so this never depends on mount-only behavior)."""
+    if not _admin_index.is_file():
+        raise HTTPException(status_code=404, detail="Admin UI not found (missing app/static/admin/index.html).")
+    return FileResponse(_admin_index)
+
+
+@app.get("/admin/index.html", include_in_schema=False)
+async def admin_index_explicit() -> FileResponse:
+    return FileResponse(_admin_index)
+
+
+app.mount("/admin/static", StaticFiles(directory=str(_admin_dir)), name="admin_static")
 app.mount("/apps/dictation", dictation_subapp, name="dictation")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
