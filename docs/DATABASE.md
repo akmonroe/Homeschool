@@ -125,6 +125,8 @@ Suite-level **assignments** (e.g. from platform admin when committing an AI word
 | Progress API | `app/apps/dictation/routers/users.py` (`/users/{id}/progress` → Postgres) |
 | ORM models | `app/core/models.py` |
 | FastAPI Postgres session dep | `app/core/deps.py` |
+| Platform admin UI (students, AI words, progress chart, dictionary) | `app/static/admin/index.html` |
+| Root app: admin routes, portal, lifespan | `app/main.py` |
 
 ---
 
@@ -154,4 +156,4 @@ Bundled CSVs are **study-style** vocabulary lists, not a substitute for official
 - **Backups:** Postgres volume + `dictation-data` (SQLite) for profile ids.
 - **Migrating old SQLite `words`:** one-off script: read old DB → `INSERT`/`upsert` into `core.lexemes` and rebuild `dictation_assignments` from old `user_words` if you still have a legacy file.
 
-**Last reviewed:** after `import_school_spelling_words.py` and lexeme `extensions` enrichment workflow.
+**Last reviewed:** unified platform admin (dictionary CSV + progress chart); see [ARCHITECTURE.md](./ARCHITECTURE.md) for URL map and simplification notes.

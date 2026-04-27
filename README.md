@@ -2,6 +2,13 @@
 Repository for AI-enabled homeschooling apps. This monorepo-style layout will
 grow with multiple apps; the first integrated app will be **Dictation**.
 
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [docs/DATABASE.md](docs/DATABASE.md) | Postgres `core` vs SQLite dictation, tables, bulk import |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | URLs, services, admin map, Docker, simplification ideas |
+
 ## Web portal
 
 After you start the stack, open **http://localhost:4500/** for a landing page
@@ -50,6 +57,20 @@ alembic upgrade head
 
 (App runtime uses **`postgresql+asyncpg://`** in `DATABASE_URL` inside Docker.)
 
+### Words and dictionary
+
+- **Operator UI:** `/admin/` → **Dictionary** tab — CSV upload (`word`, `difficulty_level`, `definition`) and inline edit of level/definition (Postgres `core.lexemes`).
+- **Browse / verify:** `/apps/dictation/ui/review.html` — paginated list including `extensions` (pronunciation, etymology, spelling tips) when populated.
+- **Rich import (CLI):** `scripts/import_school_spelling_words.py` — merges API + Wiktionary data into `extensions`. Example with Compose:
+
+```bash
+docker compose exec app sh -c \
+  'export DATABASE_URL_SYNC=postgresql://homeschool:homeschool@postgres:5432/homeschool && \
+   python scripts/import_school_spelling_words.py --csv app/apps/dictation/resources/words/spellingListtwobee.csv'
+```
+
+See [docs/DATABASE.md](docs/DATABASE.md) for schema detail and licensing notes on external word lists.
+
 ## Base development stack
 
 This repository provides a Docker Compose foundation for Python FastAPI
@@ -73,6 +94,12 @@ used without starting Ollama in Compose:
 
 ```bash
 docker compose up --build
+```
+
+After **code or static file** changes, rebuild the `app` image so the container picks them up (the app source is copied at build time, not bind-mounted):
+
+```bash
+docker compose build app && docker compose up -d
 ```
 
 To **instead** run Ollama in Docker (pulls `ollama/ollama` the first time), use
