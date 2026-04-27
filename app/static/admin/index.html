@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Homeschool — Platform admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; margin: 0; padding: 24px; }
     h1 { margin: 0 0 8px; font-size: 1.5rem; }
@@ -20,6 +21,7 @@
       box-shadow: 0 1px 3px rgba(0,0,0,.08); max-width: 960px;
     }
     .panel.active { display: block; }
+    .panel-wide { max-width: 1100px; }
     label { display: block; font-weight: 600; margin-top: 12px; margin-bottom: 4px; font-size: 0.85rem; }
     input, select, textarea { width: 100%; max-width: 420px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
     textarea { max-width: 100%; min-height: 100px; font-family: ui-monospace, monospace; }
@@ -30,28 +32,38 @@
     .btn-primary { background: #0d9488; color: #fff; }
     .btn-secondary { background: #e2e8f0; color: #334155; }
     .btn-ai { background: #7c3aed; color: #fff; }
+    .btn-upload { background: #059669; color: #fff; padding: 8px 16px; margin-top: 0; }
+    .btn-save { background: #e2e8f0; color: #334155; padding: 6px 12px; margin-top: 0; font-size: 0.85rem; }
     .err { color: #b91c1c; margin-top: 8px; font-size: 0.9rem; }
     .ok { color: #047857; margin-top: 8px; font-size: 0.9rem; }
     .draft-box { margin-top: 16px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: none; }
+    .hint { color: #64748b; font-size: 0.9rem; margin-top: 0; }
+    .upload-box { margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .upload-box h3 { margin-top: 0; font-size: 1rem; }
+    .chart-container { position: relative; height: 380px; width: 100%; margin-top: 16px; }
+    #word-table-admin input[type="number"] { width: 64px; max-width: none; }
+    #word-table-admin input[type="text"] { max-width: none; width: 100%; min-width: 0; }
   </style>
 </head>
 <body>
   <h1>Platform admin</h1>
   <p class="sub">
-    Central students (Postgres) and AI-assisted spelling word sets for dictation.
+    Students (Postgres), AI spelling lists, dictation progress, and master dictionary.
     <a class="nav" href="/">← Portal</a>
     · <a class="nav" href="/apps/dictation/ui/">Student dictation</a>
-    · <a class="nav" href="/apps/dictation/ui/admin.html">Dictation dictionary &amp; progress</a>
+    · <a class="nav" href="/apps/dictation/ui/review.html">Review words</a>
   </p>
 
   <div class="tabs">
     <button type="button" class="active" data-tab="students">Students</button>
     <button type="button" data-tab="spelling">Spelling words (AI)</button>
+    <button type="button" data-tab="dictation-progress">Dictation progress</button>
+    <button type="button" data-tab="dictionary">Dictionary</button>
   </div>
 
   <div id="students" class="panel active">
     <h2 style="margin-top:0;font-size:1.1rem">All students</h2>
-    <p style="color:#64748b;font-size:0.9rem">Each student syncs a dictation profile (SQLite) for the spelling app. Skill level 1–10 is stored in metadata.</p>
+    <p class="hint">Each student syncs a dictation profile (SQLite) for the spelling app. Skill level 1–10 is stored in metadata.</p>
     <label for="new-name">Display name</label>
     <input id="new-name" type="text" placeholder="e.g. Alex" />
     <label for="new-level">Dictation skill level (1–10)</label>
@@ -69,7 +81,7 @@
 
   <div id="spelling" class="panel">
     <h2 style="margin-top:0;font-size:1.1rem">AI word suggestions → dictation</h2>
-    <p style="color:#64748b;font-size:0.9rem">Uses the same Ollama flow as before. Words are saved to dictation and recorded as a core assignment.</p>
+    <p class="hint">Uses Ollama. Words are saved to dictation and recorded as a core assignment.</p>
     <label for="spell-student">Student</label>
     <select id="spell-student"><option value="">Loading…</option></select>
     <label for="spell-count">Target words for today’s lesson (total desired)</label>
@@ -85,18 +97,64 @@
     <p id="spell-ok" class="ok" style="display:none"></p>
   </div>
 
+  <div id="dictation-progress" class="panel panel-wide">
+    <h2 style="margin-top:0;font-size:1.1rem">Dictation progress</h2>
+    <p class="hint">Accuracy by day from dictation practice. Uses the dictation profile (same students as above after sync).</p>
+    <label for="dictation-profile-select">Dictation profile</label>
+    <select id="dictation-profile-select" onchange="loadDictationProgressChart()">
+      <option value="">Loading…</option>
+    </select>
+    <div class="chart-container">
+      <canvas id="dictation-progress-chart"></canvas>
+    </div>
+  </div>
+
+  <div id="dictionary" class="panel panel-wide">
+    <h2 style="margin-top:0;font-size:1.1rem">Master dictionary</h2>
+    <p class="hint">Postgres lexemes. Bulk upload merges by word; edit level and definition here. For rich etymology and tips, use the import script from the repo.</p>
+    <div class="upload-box">
+      <h3>Bulk upload (CSV)</h3>
+      <p style="font-size:0.85rem;color:#64748b;margin:0 0 8px">Columns: <code>word</code>, <code>difficulty_level</code> (1–10), <code>definition</code></p>
+      <input type="file" id="csv-upload-admin" accept=".csv" style="max-width:100%;margin-bottom:8px" />
+      <button type="button" class="btn btn-upload" onclick="uploadDictionaryCsv()">Upload CSV</button>
+    </div>
+    <table id="word-table-admin">
+      <thead>
+        <tr><th>Word</th><th>Level</th><th>Definition</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
   <script>
     const CORE = '/core';
+    const DICTATION = '/apps/dictation';
     let _studentNames = {};
+    let _dictationChart = null;
+
+    function activateTab(tabId) {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === tabId));
+      if (tabId === 'dictionary') loadDictionaryWords();
+      if (tabId === 'dictation-progress') loadDictationProfilesForChart({});
+    }
 
     document.querySelectorAll('.tabs button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById(btn.dataset.tab).classList.add('active');
-      });
+      btn.addEventListener('click', () => activateTab(btn.dataset.tab));
     });
+
+    function escapeHtml(t) {
+      const d = document.createElement('div');
+      d.textContent = t == null ? '' : String(t);
+      return d.innerHTML;
+    }
+
+    function escapeAttr(t) {
+      return String(t == null ? '' : t)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;');
+    }
 
     async function loadStudents() {
       document.getElementById('student-err').style.display = 'none';
@@ -121,23 +179,17 @@
           tbody.innerHTML += `<tr>
             <td><strong>${escapeHtml(s.display_name)}</strong></td>
             <td>${escapeHtml(String(lvl))}</td>
-            <td><code style="font-size:0.8rem">${s.id}</code></td>
+            <td><code style="font-size:0.8rem">${escapeHtml(s.id)}</code></td>
             <td>
-              <button type="button" class="btn btn-secondary" style="margin:0;padding:6px 10px" data-student-id="${s.id}" onclick="editSkillFromBtn(this)">Set skill…</button>
+              <button type="button" class="btn btn-secondary" style="margin:0;padding:6px 10px" data-student-id="${escapeAttr(s.id)}" onclick="editSkillFromBtn(this)">Set skill…</button>
             </td>
           </tr>`;
-          sel.innerHTML += `<option value="${s.id}">${escapeHtml(s.display_name)}</option>`;
+          sel.innerHTML += `<option value="${escapeAttr(s.id)}">${escapeHtml(s.display_name)}</option>`;
         }
       } catch (e) {
         document.getElementById('student-err').textContent = 'Could not load students. Is Postgres running and DATABASE_URL set? ' + e.message;
         document.getElementById('student-err').style.display = 'block';
       }
-    }
-
-    function escapeHtml(t) {
-      const d = document.createElement('div');
-      d.textContent = t;
-      return d.innerHTML;
     }
 
     async function createStudent() {
@@ -166,6 +218,7 @@
       document.getElementById('student-msg').textContent = 'Student created.';
       document.getElementById('student-msg').style.display = 'block';
       await loadStudents();
+      await loadDictationProfilesForChart({ skipChart: true });
     }
 
     async function editSkillFromBtn(btn) {
@@ -240,7 +293,138 @@
       document.getElementById('draft-box').style.display = 'none';
     }
 
-    window.onload = loadStudents;
+    async function loadDictationProfilesForChart(opts) {
+      const skipChart = opts && opts.skipChart;
+      const sel = document.getElementById('dictation-profile-select');
+      try {
+        const res = await fetch(`${DICTATION}/users`);
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        const prev = sel.value;
+        sel.innerHTML = '';
+        if (!data.users || !data.users.length) {
+          sel.innerHTML = '<option value="">No dictation profiles — create students above</option>';
+          if (_dictationChart) { _dictationChart.destroy(); _dictationChart = null; }
+          return;
+        }
+        data.users.forEach(u => {
+          sel.innerHTML += `<option value="${escapeHtml(String(u.id))}">${escapeHtml(u.name)}</option>`;
+        });
+        if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+        else sel.selectedIndex = 0;
+        if (!skipChart) await loadDictationProgressChart();
+      } catch (e) {
+        sel.innerHTML = '<option value="">Error loading profiles</option>';
+        console.error(e);
+      }
+    }
+
+    async function loadDictationProgressChart() {
+      const userId = document.getElementById('dictation-profile-select').value;
+      if (!userId) return;
+      try {
+        const res = await fetch(`${DICTATION}/users/${userId}/progress`);
+        const data = await res.json();
+        const report = data.report || [];
+        const labels = report.map(r => r.date).reverse();
+        const scores = report.map(r => r.accuracy_percent).reverse();
+        if (_dictationChart) _dictationChart.destroy();
+        const ctx = document.getElementById('dictation-progress-chart').getContext('2d');
+        _dictationChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Accuracy %',
+              data: scores,
+              borderColor: '#0d9488',
+              backgroundColor: 'rgba(13, 148, 136, 0.15)',
+              tension: 0.3,
+              fill: true
+            }]
+          },
+          options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadDictionaryWords() {
+      const tbody = document.querySelector('#word-table-admin tbody');
+      tbody.innerHTML = '<tr><td colspan="4">Loading…</td></tr>';
+      try {
+        const res = await fetch(`${DICTATION}/words`);
+        const data = await res.json();
+        tbody.innerHTML = '';
+        if (!data.words || !data.words.length) {
+          tbody.innerHTML = '<tr><td colspan="4">No words yet. Upload a CSV or assign from AI tab.</td></tr>';
+          return;
+        }
+        for (const w of data.words) {
+          const wid = String(w.id).replace(/[^a-zA-Z0-9-]/g, '');
+          const word = escapeHtml(w.word);
+          const def = w.definition == null ? '' : String(w.definition);
+          const lvl = w.difficulty_level != null ? w.difficulty_level : 1;
+          tbody.innerHTML += `<tr>
+            <td><strong>${word}</strong></td>
+            <td><input type="number" min="1" max="10" id="lvl-${wid}" value="${escapeAttr(lvl)}" /></td>
+            <td><input type="text" id="def-${wid}" value="${escapeAttr(def)}" /></td>
+            <td><button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'))">Save</button></td>
+          </tr>`;
+        }
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4">Could not load words.</td></tr>';
+        console.error(e);
+      }
+    }
+
+    async function saveDictionaryWord(id) {
+      const level = document.getElementById(`lvl-${id}`).value;
+      const def = document.getElementById(`def-${id}`).value;
+      const res = await fetch(`${DICTATION}/words/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ difficulty_level: parseInt(level, 10) || 1, definition: def })
+      });
+      if (!res.ok) { alert(await res.text()); return; }
+      alert('Saved.');
+    }
+
+    async function uploadDictionaryCsv() {
+      const fileInput = document.getElementById('csv-upload-admin');
+      const file = fileInput.files[0];
+      if (!file) { alert('Choose a CSV file first.'); return; }
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch(`${DICTATION}/words/bulk-upload`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message || 'Upload complete.');
+          fileInput.value = '';
+          loadDictionaryWords();
+        } else {
+          alert('Upload failed: ' + (data.detail || res.status));
+        }
+      } catch (e) {
+        alert('Error uploading.');
+      }
+    }
+
+    function applyHashTab() {
+      const h = (location.hash || '').replace(/^#/, '');
+      const valid = ['students', 'spelling', 'dictation-progress', 'dictionary'];
+      if (valid.includes(h)) activateTab(h);
+    }
+
+    window.addEventListener('hashchange', applyHashTab);
+
+    window.onload = async () => {
+      await loadStudents();
+      await loadDictationProfilesForChart({ skipChart: true });
+      applyHashTab();
+    };
   </script>
 </body>
 </html>
