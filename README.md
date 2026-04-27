@@ -29,6 +29,10 @@ that links to each app and to the shared API documentation (`/docs`).
   while Coqui downloads the VITS weights into the container; HTTP may reset
   until you see `Application startup complete` in the logs.
 
+  **TTS (VITS + ffmpeg):** `DICTATION_TTS_SPEAKER` (VCTK id, default `p225`), `DICTATION_TTS_PLAYBACK_TEMPO`
+  (default `0.58` — lower is slower/clearer), optional `DICTATION_TTS_WORD_PLAYBACK_TEMPO`. Re-listening to the
+  same word reuses the cached sentence and audio until the next word.
+
 ## Core platform (PostgreSQL)
 
 Compose starts **Postgres 16** and sets **`DATABASE_URL`** for the app. On boot,

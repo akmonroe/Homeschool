@@ -63,7 +63,7 @@ Bulk enrichment (etymology, phonetics, tricks) is **not** in the browser; use `s
 | Service | Used by | Configuration |
 |---------|---------|----------------|
 | **Ollama** | Root `/ai/generate`, dictation sentence generation, grading feedback, AI word draft in `session_words` | `OLLAMA_BASE_URL` (default host Docker gateway `:11434`), `DEFAULT_OLLAMA_MODEL`, `DICTATION_OLLAMA_MODEL` |
-| **Coqui TTS (VITS)** | Dictation `/generate`, word/sentence WAV | Downloaded on first use inside container |
+| **Coqui TTS (VITS)** | Dictation `/generate`, word/sentence WAV | VCTK multi-speaker; `split_sentences=false`; ffmpeg `atempo` slows playback (`DICTATION_TTS_PLAYBACK_TEMPO`). Same target word reuses one sentence + WAV until the next word. |
 | **Dictionary API / Wiktionary** | Import script only | No runtime dependency |
 
 ---
