@@ -108,7 +108,7 @@ Suite-level **assignments** (e.g. from platform admin when committing an AI word
 ## 4. Cross-store flows
 
 1. **Create core student** → sync SQLite `users` row with `core_student_id`.
-2. **Dictionary admin / CSV** → upserts **`core.lexemes`**.
+2. **Platform admin → Dictionary tab / CSV** → upserts **`core.lexemes`**.
 3. **Assign words** (API or AI commit) → **`core.dictation_assignments`** + optional **`core.assignments`** (suite record).
 4. **Student plays** → reads due rows from **`dictation_assignments`** + **`lexemes`**; grades write **`dictation_attempts`** and update the assignment row.
 
