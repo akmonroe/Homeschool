@@ -32,17 +32,27 @@
     .btn-primary { background: #0d9488; color: #fff; }
     .btn-secondary { background: #e2e8f0; color: #334155; }
     .btn-ai { background: #7c3aed; color: #fff; }
-    .btn-upload { background: #059669; color: #fff; padding: 8px 16px; margin-top: 0; }
     .btn-save { background: #e2e8f0; color: #334155; padding: 6px 12px; margin-top: 0; font-size: 0.85rem; }
     .err { color: #b91c1c; margin-top: 8px; font-size: 0.9rem; }
     .ok { color: #047857; margin-top: 8px; font-size: 0.9rem; }
     .draft-box { margin-top: 16px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: none; }
     .hint { color: #64748b; font-size: 0.9rem; margin-top: 0; }
-    .upload-box { margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
-    .upload-box h3 { margin-top: 0; font-size: 1rem; }
     .chart-container { position: relative; height: 380px; width: 100%; margin-top: 16px; }
-    #word-table-admin input[type="number"] { width: 64px; max-width: none; }
-    #word-table-admin input[type="text"] { max-width: none; width: 100%; min-width: 0; }
+    #lexeme-dictionary { margin-top: 8px; }
+    .lex-card {
+      border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; margin-bottom: 16px;
+      background: #fafafa; text-align: left;
+    }
+    .lex-card h3 { margin: 0 0 6px; font-size: 1.1rem; color: #0f172a; }
+    .lex-meta { font-size: 0.8rem; color: #64748b; margin-bottom: 12px; word-break: break-all; }
+    .lex-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 0.9rem; }
+    .lex-section strong { display: block; margin-bottom: 4px; color: #334155; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .lex-section pre { margin: 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.82rem; line-height: 1.45; }
+    .lex-tricks { margin: 6px 0 0 1.1em; padding: 0; }
+    .lex-edit { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .lex-edit label { margin-top: 0; }
+    .lex-edit input[type="number"] { width: 72px; max-width: none; }
+    .lex-edit input[type="text"] { flex: 1; min-width: 180px; max-width: 100%; }
   </style>
 </head>
 <body>
@@ -111,19 +121,8 @@
 
   <div id="dictionary" class="panel panel-wide">
     <h2 style="margin-top:0;font-size:1.1rem">Master dictionary</h2>
-    <p class="hint">Postgres lexemes. Bulk upload merges by word; edit level and definition here. For rich etymology and tips, use the import script from the repo.</p>
-    <div class="upload-box">
-      <h3>Bulk upload (CSV)</h3>
-      <p style="font-size:0.85rem;color:#64748b;margin:0 0 8px">Columns: <code>word</code>, <code>difficulty_level</code> (1–10), <code>definition</code></p>
-      <input type="file" id="csv-upload-admin" accept=".csv" style="max-width:100%;margin-bottom:8px" />
-      <button type="button" class="btn btn-upload" onclick="uploadDictionaryCsv()">Upload CSV</button>
-    </div>
-    <table id="word-table-admin">
-      <thead>
-        <tr><th>Word</th><th>Level</th><th>Definition</th><th></th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <p class="hint">Each card is one <code>core.lexemes</code> row: identifiers, definition, pronunciation / etymology / tips when present, full <code>extensions</code> JSON, and quick edits for level and definition. Add words via <strong>Spelling words (AI)</strong> or enrich with <code>scripts/import_school_spelling_words.py</code> (see docs).</p>
+    <div id="lexeme-dictionary"></div>
   </div>
 
   <script>
@@ -350,31 +349,86 @@
       }
     }
 
+    function lexemePronunciationSummary(ext) {
+      const p = ext && ext.pronunciation;
+      if (!p) return '';
+      const ipa = p.ipa_or_dictionary_phonetic || '';
+      const rules = Array.isArray(p.pronunciation_rules) ? p.pronunciation_rules.join(' ') : '';
+      return [ipa && ('IPA / guide: ' + ipa), rules].filter(Boolean).join(' · ');
+    }
+
+    function lexemeEtymology(ext) {
+      if (!ext || ext.etymology == null) return '';
+      return String(ext.etymology).trim();
+    }
+
+    function lexemeSpellingTricks(ext) {
+      const t = ext && ext.spelling_tricks;
+      if (Array.isArray(t)) return t.map(x => String(x).trim()).filter(Boolean);
+      if (typeof t === 'string' && t.trim()) return [t.trim()];
+      return [];
+    }
+
+    function renderLexemeCard(w) {
+      const ext = w.extensions || {};
+      const wid = String(w.id).replace(/[^a-zA-Z0-9-]/g, '');
+      const display = (w.display_word && String(w.display_word).trim()) ? escapeHtml(w.display_word.trim()) : '';
+      const canon = escapeHtml(w.word || '');
+      const title = display || canon;
+      const locale = w.locale_code != null ? escapeHtml(String(w.locale_code)) : 'en';
+      const lid = escapeHtml(String(w.id));
+      const pr = lexemePronunciationSummary(ext);
+      const et = lexemeEtymology(ext);
+      const tricks = lexemeSpellingTricks(ext);
+      let tricksHtml = '';
+      if (tricks.length) {
+        tricksHtml = '<ul class="lex-tricks">' + tricks.map(t => '<li>' + escapeHtml(t) + '</li>').join('') + '</ul>';
+      } else {
+        tricksHtml = '<p style="margin:0;color:#94a3b8;font-size:0.9rem">None stored.</p>';
+      }
+      const def = w.definition == null ? '' : String(w.definition);
+      const lvl = w.difficulty_level != null ? w.difficulty_level : 1;
+      let jsonBlock = '';
+      try {
+        jsonBlock = escapeHtml(JSON.stringify(ext, null, 2));
+      } catch (e) {
+        jsonBlock = escapeHtml(String(ext));
+      }
+      const prBlock = pr
+        ? `<div class="lex-section"><strong>Pronunciation</strong><pre>${escapeHtml(pr)}</pre></div>`
+        : '<div class="lex-section"><strong>Pronunciation</strong><p style="margin:0;color:#94a3b8;font-size:0.9rem">None stored.</p></div>';
+      const etBlock = et
+        ? `<div class="lex-section"><strong>Etymology &amp; word history</strong><pre>${escapeHtml(et)}</pre></div>`
+        : '<div class="lex-section"><strong>Etymology &amp; word history</strong><p style="margin:0;color:#94a3b8;font-size:0.9rem">None stored.</p></div>';
+      return `<article class="lex-card">
+        <h3>${title}</h3>
+        <div class="lex-meta">Canonical: <code>${canon}</code>${display ? ' · Display: <code>' + display + '</code>' : ''} · Locale: <code>${locale}</code><br>Lexeme id: <code>${lid}</code> · Difficulty: <strong>${escapeHtml(String(lvl))}</strong></div>
+        <div class="lex-section"><strong>Definition</strong><pre>${escapeHtml(def || '(empty)')}</pre></div>
+        ${prBlock}
+        ${etBlock}
+        <div class="lex-section"><strong>Spelling tips</strong>${tricksHtml}</div>
+        <div class="lex-section"><strong>Full extensions (JSON)</strong><pre>${jsonBlock}</pre></div>
+        <div class="lex-edit">
+          <div><label for="lvl-${wid}">Level (1–10)</label><input type="number" min="1" max="10" id="lvl-${wid}" value="${escapeAttr(lvl)}" /></div>
+          <div style="flex:1;min-width:200px"><label for="def-${wid}">Definition (edit)</label><input type="text" id="def-${wid}" value="${escapeAttr(def)}" /></div>
+          <button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'))">Save</button>
+        </div>
+      </article>`;
+    }
+
     async function loadDictionaryWords() {
-      const tbody = document.querySelector('#word-table-admin tbody');
-      tbody.innerHTML = '<tr><td colspan="4">Loading…</td></tr>';
+      const root = document.getElementById('lexeme-dictionary');
+      root.innerHTML = '<p class="hint">Loading…</p>';
       try {
         const res = await fetch(`${DICTATION}/words`);
         const data = await res.json();
-        tbody.innerHTML = '';
         if (!data.words || !data.words.length) {
-          tbody.innerHTML = '<tr><td colspan="4">No words yet. Upload a CSV or assign from AI tab.</td></tr>';
+          root.innerHTML = '<p class="hint">No words yet. Use <strong>Spelling words (AI)</strong> to assign words, or run <code>scripts/import_school_spelling_words.py</code> (see README / docs).</p>';
           return;
         }
-        for (const w of data.words) {
-          const wid = String(w.id).replace(/[^a-zA-Z0-9-]/g, '');
-          const word = escapeHtml(w.word);
-          const def = w.definition == null ? '' : String(w.definition);
-          const lvl = w.difficulty_level != null ? w.difficulty_level : 1;
-          tbody.innerHTML += `<tr>
-            <td><strong>${word}</strong></td>
-            <td><input type="number" min="1" max="10" id="lvl-${wid}" value="${escapeAttr(lvl)}" /></td>
-            <td><input type="text" id="def-${wid}" value="${escapeAttr(def)}" /></td>
-            <td><button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'))">Save</button></td>
-          </tr>`;
-        }
+        root.innerHTML = data.words.map(renderLexemeCard).join('');
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="4">Could not load words.</td></tr>';
+        root.innerHTML = '<p class="err">Could not load dictionary.</p>';
         console.error(e);
       }
     }
@@ -389,27 +443,6 @@
       });
       if (!res.ok) { alert(await res.text()); return; }
       alert('Saved.');
-    }
-
-    async function uploadDictionaryCsv() {
-      const fileInput = document.getElementById('csv-upload-admin');
-      const file = fileInput.files[0];
-      if (!file) { alert('Choose a CSV file first.'); return; }
-      const formData = new FormData();
-      formData.append('file', file);
-      try {
-        const res = await fetch(`${DICTATION}/words/bulk-upload`, { method: 'POST', body: formData });
-        const data = await res.json();
-        if (res.ok) {
-          alert(data.message || 'Upload complete.');
-          fileInput.value = '';
-          loadDictionaryWords();
-        } else {
-          alert('Upload failed: ' + (data.detail || res.status));
-        }
-      } catch (e) {
-        alert('Error uploading.');
-      }
     }
 
     function applyHashTab() {

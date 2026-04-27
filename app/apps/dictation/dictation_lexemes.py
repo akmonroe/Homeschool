@@ -108,6 +108,8 @@ async def list_lexemes_for_admin(session: AsyncSession, locale_code: str = DEFAU
         {
             "id": str(r.id),
             "word": r.canonical_word,
+            "display_word": (r.display_word or "").strip() or None,
+            "locale_code": r.locale_code,
             "difficulty_level": r.difficulty_level,
             "definition": r.definition or "",
             "extensions": r.extensions or {},

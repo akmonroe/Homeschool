@@ -52,7 +52,7 @@ Details: [DATABASE.md](./DATABASE.md).
 1. **Students** — `POST/PATCH /core/students`; syncs dictation SQLite profile.
 2. **Spelling words (AI)** — `POST /core/students/{id}/dictation-session/draft|commit`.
 3. **Dictation progress** — `GET /apps/dictation/users`, `GET .../users/{id}/progress` (Chart.js).
-4. **Dictionary** — `GET/PUT /apps/dictation/words`, `POST .../words/bulk-upload`.
+4. **Dictionary** — `GET/PUT /apps/dictation/words` (UI shows full lexeme summaries; optional script/API: `POST .../words/bulk-upload`).
 
 Bulk enrichment (etymology, phonetics, tricks) is **not** in the browser; use `scripts/import_school_spelling_words.py` (see README and DATABASE.md).
 
@@ -103,4 +103,4 @@ These are **code health** suggestions; none block shipping.
 
 ---
 
-**Last reviewed:** platform admin merge (dictionary + progress); Docker rebuild path documented above.
+**Last reviewed:** dictation `ollama_settings.py`, unified `get_core_pg_session`, removal of `routes_OLD.py`.

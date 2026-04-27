@@ -15,7 +15,7 @@ After you start the stack, open **http://localhost:4500/** for a landing page
 that links to each app and to the shared API documentation (`/docs`).
 
 - **Platform admin** (students, AI word planner, dictation progress chart, master dictionary
-  CSV upload + table) — **`http://localhost:4500/admin/`** (or **`http://localhost:4500/admin`**
+  summaries + level/definition edit) — **`http://localhost:4500/admin/`** (or **`http://localhost:4500/admin`**
   — redirects to the trailing slash). Deep links: `#students`, `#spelling`, `#dictation-progress`,
   `#dictionary`. Served from `app/static/admin/index.html`. Requires Postgres: if the page loads
   but API calls fail, check **`DATABASE_URL`** and `docker compose ps` (Postgres must be healthy).
@@ -59,7 +59,7 @@ alembic upgrade head
 
 ### Words and dictionary
 
-- **Operator UI:** `/admin/` → **Dictionary** tab — CSV upload (`word`, `difficulty_level`, `definition`) and inline edit of level/definition (Postgres `core.lexemes`).
+- **Operator UI:** `/admin/` → **Dictionary** tab — full per-word summary (definition, pronunciation, etymology, spelling tips, full `extensions` JSON) plus inline edit of level and definition (Postgres `core.lexemes`). Bulk CSV remains available via **`POST /apps/dictation/words/bulk-upload`** for scripts if needed.
 - **Browse / verify:** `/apps/dictation/ui/review.html` — paginated list including `extensions` (pronunciation, etymology, spelling tips) when populated.
 - **Rich import (CLI):** `scripts/import_school_spelling_words.py` — merges API + Wiktionary data into `extensions`. Example with Compose:
 
