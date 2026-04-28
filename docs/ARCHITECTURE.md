@@ -93,6 +93,20 @@ Rebuild after changing Python or copied static files:
 docker compose build app && docker compose up -d
 ```
 
+### Environment variables (dictation-related)
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `OLLAMA_BASE_URL` | Host for Ollama (`/api/generate`) | `http://host.docker.internal:11434` |
+| `OLLAMA_GENERATE_URL` | Full generate URL override | `{OLLAMA_BASE_URL}/api/generate` |
+| `DICTATION_OLLAMA_MODEL` | Model name for dictation prompts | `gemma4:e4b` |
+| `DICTATION_DATA_DIR` | WAV output directory | `/app/data` |
+| `DICTATION_TTS_SPEAKER` | VCTK speaker id for VITS | `p225` |
+| `DICTATION_TTS_PLAYBACK_TEMPO` | ffmpeg slowdown factor (lower = slower) | `0.58` |
+| `DICTATION_TTS_WORD_PLAYBACK_TEMPO` | Optional; word-only clip | derived from sentence tempo |
+
+Compose passes the `DICTATION_TTS_*` vars in `docker-compose.yml`; override locally as needed.
+
 ---
 
 ## 7. Refactoring backlog (recommended order)
