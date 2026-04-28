@@ -21,7 +21,7 @@ A **single** FastAPI application (`app/main.py`) owns:
 |-----|---------|
 | `/` | Landing page (`app/static/index.html`) |
 | `/docs` | OpenAPI for the **root** app only |
-| `/admin/`, `/admin` | Platform admin (`app/static/admin/index.html`). Hash tabs: `#students`, `#spelling`, `#dictation-progress`, `#dictionary` |
+| `/admin/`, `/admin` | Platform admin (`app/static/admin/index.html`). Hash tabs: `#students`, `#assignments`, `#spelling`, `#dictation-progress`, `#dictionary` |
 | `/apps/dictation/ui/` | Student dictation (static + game) |
 | `/apps/dictation/ui/review.html` | Read-only dictionary browse |
 | `/apps/dictation/ui/admin.html` | Redirects to `/admin/` |
