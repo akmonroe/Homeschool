@@ -6,14 +6,19 @@
   <title>Homeschool — Platform admin</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; margin: 0; padding: 24px; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; margin: 0; padding: 16px; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      h1 { font-size: 1.35rem; }
+    }
     h1 { margin: 0 0 8px; font-size: 1.5rem; }
     .sub { color: #64748b; margin-bottom: 24px; font-size: 0.95rem; }
     a.nav { color: #0d9488; }
     .tabs { display: flex; gap: 4px; margin-bottom: 0; flex-wrap: wrap; }
     .tabs button {
-      padding: 10px 18px; border: none; background: #e2e8f0; cursor: pointer;
-      border-radius: 8px 8px 0 0; font-size: 0.95rem;
+      padding: 12px 14px; border: none; background: #e2e8f0; cursor: pointer;
+      border-radius: 8px 8px 0 0; font-size: 0.9rem; min-height: 44px;
     }
     .tabs button.active { background: #fff; font-weight: 600; border-bottom: 2px solid #0d9488; }
     .panel {
@@ -53,12 +58,67 @@
     .lex-edit label { margin-top: 0; }
     .lex-edit input[type="number"] { width: 72px; max-width: none; }
     .lex-edit input[type="text"] { flex: 1; min-width: 180px; max-width: 100%; }
+
+    /* Assignments tab — mobile-first cards */
+    .assign-toolbar {
+      display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;
+      max-width: 100%;
+    }
+    @media (min-width: 560px) {
+      .assign-toolbar { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+      .assign-toolbar .field-grow { flex: 1; min-width: 180px; }
+    }
+    .assign-toolbar label { margin-top: 0; }
+    .assign-toolbar select, .assign-toolbar input { max-width: 100%; }
+    .btn-refresh { margin-top: 0; min-height: 44px; padding: 12px 18px; }
+    .assignment-card {
+      border: 1px solid #e2e8f0; border-radius: 12px; background: #fafafa;
+      margin-bottom: 12px; overflow: hidden; text-align: left;
+    }
+    .assignment-card summary {
+      list-style: none; cursor: pointer; padding: 14px 16px;
+      display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
+      justify-content: space-between; min-height: 48px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .assignment-card summary::-webkit-details-marker { display: none; }
+    .assignment-card summary::after { content: '▸'; color: #64748b; font-size: 0.85rem; margin-left: auto; }
+    .assignment-card[open] summary::after { content: '▾'; }
+    .assign-title { font-weight: 700; font-size: 1.05rem; flex: 1; min-width: 0; }
+    .assign-badge {
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 999px; background: #e0f2fe; color: #0369a1;
+    }
+    .assign-badge.draft { background: #f1f5f9; color: #475569; }
+    .assign-badge.assigned { background: #dbeafe; color: #1d4ed8; }
+    .assign-meta {
+      padding: 0 16px 12px; font-size: 0.88rem; color: #475569; line-height: 1.5;
+    }
+    .assign-form {
+      padding: 0 16px 16px; border-top: 1px solid #e2e8f0; background: #fff;
+      padding-top: 14px;
+    }
+    .assign-form label { margin-top: 10px; }
+    .assign-form label:first-child { margin-top: 0; }
+    .assign-form input[type="text"], .assign-form select, .assign-form textarea {
+      max-width: 100%; font-size: 16px;
+    }
+    .assign-form-row { display: grid; gap: 10px; }
+    @media (min-width: 480px) {
+      .assign-form-row.two { grid-template-columns: 1fr 1fr; }
+    }
+    .btn-assign-save {
+      width: 100%; margin-top: 14px; min-height: 48px; font-size: 1rem;
+      background: #0d9488; color: #fff; border: none; border-radius: 10px;
+      font-weight: 600; cursor: pointer;
+    }
+    .assign-empty { color: #64748b; padding: 20px; text-align: center; }
   </style>
 </head>
 <body>
   <h1>Platform admin</h1>
   <p class="sub">
-    Students (Postgres), AI spelling lists, dictation progress, and master dictionary.
+    Students (Postgres), assignments, AI spelling lists, dictation progress, and master dictionary.
     <a class="nav" href="/">← Portal</a>
     · <a class="nav" href="/apps/dictation/ui/">Student dictation</a>
     · <a class="nav" href="/apps/dictation/ui/review.html">Review words</a>
@@ -69,6 +129,7 @@
     <button type="button" data-tab="spelling">Spelling words (AI)</button>
     <button type="button" data-tab="dictation-progress">Dictation progress</button>
     <button type="button" data-tab="dictionary">Dictionary</button>
+    <button type="button" data-tab="assignments">Assignments</button>
   </div>
 
   <div id="students" class="panel active">
@@ -119,6 +180,27 @@
     </div>
   </div>
 
+  <div id="assignments" class="panel panel-wide">
+    <h2 style="margin-top:0;font-size:1.1rem">Assignments</h2>
+    <p class="hint">Suite-level work from Postgres (<code>core.assignments</code>). <strong>Subject</strong> is the app slug (e.g. <code>dictation</code>). Dates use your device timezone.</p>
+    <div class="assign-toolbar">
+      <div class="field-grow">
+        <label for="assign-student">Student</label>
+        <select id="assign-student" onchange="loadAssignmentsPanel()"><option value="">Loading…</option></select>
+      </div>
+      <div class="field-grow">
+        <label for="assign-subject">Subject</label>
+        <select id="assign-subject">
+          <option value="">All subjects</option>
+          <option value="__none__">(No subject)</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-primary btn-refresh" onclick="loadAssignmentsPanel()">Refresh list</button>
+    </div>
+    <p id="assign-err" class="err" style="display:none"></p>
+    <div id="assign-list"></div>
+  </div>
+
   <div id="dictionary" class="panel panel-wide">
     <h2 style="margin-top:0;font-size:1.1rem">Master dictionary</h2>
     <p class="hint">Each card is one <code>core.lexemes</code> row: identifiers, definition, pronunciation / etymology / tips when present, full <code>extensions</code> JSON, and quick edits for level and definition. Add words via <strong>Spelling words (AI)</strong> or enrich with <code>scripts/import_school_spelling_words.py</code> (see docs).</p>
@@ -136,6 +218,7 @@
       document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === tabId));
       if (tabId === 'dictionary') loadDictionaryWords();
       if (tabId === 'dictation-progress') loadDictationProfilesForChart({});
+      if (tabId === 'assignments') loadAssignmentsPanel();
     }
 
     document.querySelectorAll('.tabs button').forEach(btn => {
@@ -164,13 +247,16 @@
         _studentNames = {};
         const tbody = document.getElementById('student-rows');
         const sel = document.getElementById('spell-student');
+        const assignSel = document.getElementById('assign-student');
         tbody.innerHTML = '';
         sel.innerHTML = '';
         if (!list.length) {
           tbody.innerHTML = '<tr><td colspan="4">No students yet. Create one above.</td></tr>';
           sel.innerHTML = '<option value="">No students</option>';
+          if (assignSel) assignSel.innerHTML = '<option value="">No students</option>';
           return;
         }
+        if (assignSel) assignSel.innerHTML = '';
         for (const s of list) {
           _studentNames[s.id] = s.display_name;
           const meta = s.metadata || {};
@@ -184,6 +270,9 @@
             </td>
           </tr>`;
           sel.innerHTML += `<option value="${escapeAttr(s.id)}">${escapeHtml(s.display_name)}</option>`;
+          if (assignSel) {
+            assignSel.innerHTML += `<option value="${escapeAttr(s.id)}">${escapeHtml(s.display_name)}</option>`;
+          }
         }
       } catch (e) {
         document.getElementById('student-err').textContent = 'Could not load students. Is Postgres running and DATABASE_URL set? ' + e.message;
@@ -445,9 +534,202 @@
       alert('Saved.');
     }
 
+    function formatLocalDateTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso);
+      return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    function toDatetimeLocalValue(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      const y = d.getFullYear();
+      const m = pad(d.getMonth() + 1);
+      const day = pad(d.getDate());
+      const h = pad(d.getHours());
+      const min = pad(d.getMinutes());
+      return `${y}-${m}-${day}T${h}:${min}`;
+    }
+
+    function slugLabel(slug) {
+      if (slug == null || slug === '') return '(No subject)';
+      if (slug === 'dictation') return 'Dictation';
+      return slug;
+    }
+
+    let _lastAssignmentsRaw = [];
+
+    function rebuildAssignSubjectFilter(assignments) {
+      const subSel = document.getElementById('assign-subject');
+      if (!subSel) return;
+      const prev = subSel.value;
+      const slugs = [...new Set(assignments.map(a => a.app_slug || '').filter(Boolean))].sort();
+      subSel.innerHTML = '<option value="">All subjects</option><option value="__none__">(No subject)</option>';
+      slugs.forEach(s => {
+        subSel.innerHTML += `<option value="${escapeAttr(s)}">${escapeHtml(slugLabel(s))}</option>`;
+      });
+      if ([...subSel.options].some(o => o.value === prev)) subSel.value = prev;
+    }
+
+    function filterAssignmentsForDisplay(assignments) {
+      const f = document.getElementById('assign-subject');
+      const v = f ? f.value : '';
+      if (!v) return assignments;
+      if (v === '__none__') return assignments.filter(a => !a.app_slug);
+      return assignments.filter(a => (a.app_slug || '') === v);
+    }
+
+    function renderAssignmentCard(a, studentId) {
+      const aid = escapeAttr(a.id);
+      const slug = a.app_slug || '';
+      const subjectBadge = escapeHtml(slugLabel(slug));
+      const st = (a.status || 'draft').toLowerCase();
+      const badgeClass = st === 'assigned' ? 'assigned' : 'draft';
+      const title = escapeHtml(a.title || '(Untitled)');
+      const instr = (a.instructions || '').trim();
+      const avail = formatLocalDateTime(a.available_from);
+      const due = formatLocalDateTime(a.due_at);
+      const wid = String(a.id).replace(/[^a-zA-Z0-9-]/g, '');
+      return `<details class="assignment-card" id="assign-card-${wid}">
+        <summary>
+          <span class="assign-title">${title}</span>
+          <span class="assign-badge ${badgeClass}">${escapeHtml(st)}</span>
+          <span class="assign-badge">${subjectBadge}</span>
+        </summary>
+        <div class="assign-meta">
+          <strong>Opens:</strong> ${escapeHtml(avail)} · <strong>Due:</strong> ${escapeHtml(due)}
+          ${instr ? '<br><span style="margin-top:6px;display:inline-block">' + escapeHtml(instr.length > 200 ? instr.slice(0, 200) + '…' : instr) + '</span>' : ''}
+        </div>
+        <div class="assign-form">
+          <label for="atitle-${wid}">Title</label>
+          <input type="text" id="atitle-${wid}" value="${escapeAttr(a.title || '')}" autocomplete="off" />
+          <div class="assign-form-row two">
+            <div>
+              <label for="astatus-${wid}">Status</label>
+              <select id="astatus-${wid}">
+                <option value="draft" ${st === 'draft' ? 'selected' : ''}>draft</option>
+                <option value="assigned" ${st === 'assigned' ? 'selected' : ''}>assigned</option>
+                <option value="in_progress" ${st === 'in_progress' ? 'selected' : ''}>in_progress</option>
+                <option value="completed" ${st === 'completed' ? 'selected' : ''}>completed</option>
+                <option value="cancelled" ${st === 'cancelled' ? 'selected' : ''}>cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label for="aslug-${wid}">Subject (app slug)</label>
+              <input type="text" id="aslug-${wid}" value="${escapeAttr(slug)}" placeholder="dictation" autocomplete="off" />
+            </div>
+          </div>
+          <div class="assign-form-row two">
+            <div>
+              <label for="aavail-${wid}">Available from</label>
+              <input type="datetime-local" id="aavail-${wid}" value="${escapeAttr(toDatetimeLocalValue(a.available_from))}" />
+            </div>
+            <div>
+              <label for="adue-${wid}">Due</label>
+              <input type="datetime-local" id="adue-${wid}" value="${escapeAttr(toDatetimeLocalValue(a.due_at))}" />
+            </div>
+          </div>
+          <label for="ainstr-${wid}">Instructions</label>
+          <textarea id="ainstr-${wid}" rows="3">${escapeHtml(instr)}</textarea>
+          <button type="button" class="btn-assign-save" data-student-id="${escapeAttr(studentId)}" data-assignment-id="${aid}" onclick="saveAssignmentFromBtn(this)">Save changes</button>
+        </div>
+      </details>`;
+    }
+
+    async function saveAssignmentFromBtn(btn) {
+      const sid = btn.getAttribute('data-student-id');
+      const aid = btn.getAttribute('data-assignment-id');
+      const wid = aid.replace(/[^a-zA-Z0-9-]/g, '');
+      const title = document.getElementById(`atitle-${wid}`).value.trim();
+      if (!title) { alert('Title is required'); return; }
+      const status = document.getElementById(`astatus-${wid}`).value;
+      const appSlugRaw = document.getElementById(`aslug-${wid}`).value.trim();
+      const app_slug = appSlugRaw === '' ? null : appSlugRaw;
+      const availEl = document.getElementById(`aavail-${wid}`).value;
+      const dueEl = document.getElementById(`adue-${wid}`).value;
+      const available_from = availEl ? new Date(availEl).toISOString() : null;
+      const due_at = dueEl ? new Date(dueEl).toISOString() : null;
+      const instructions = document.getElementById(`ainstr-${wid}`).value.trim() || null;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/assignments/${aid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            status,
+            app_slug,
+            available_from,
+            due_at,
+            instructions
+          })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await loadAssignmentsPanel(true);
+      } catch (e) {
+        alert('Save failed: ' + (e.message || e));
+      }
+      btn.disabled = false;
+    }
+
+    async function loadAssignmentsPanel(skipSubjectRebuild) {
+      const err = document.getElementById('assign-err');
+      const list = document.getElementById('assign-list');
+      const sid = document.getElementById('assign-student').value;
+      err.style.display = 'none';
+      if (!sid) {
+        list.innerHTML = '<p class="assign-empty">Select a student.</p>';
+        return;
+      }
+      list.innerHTML = '<p class="hint">Loading…</p>';
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/assignments`);
+        if (!res.ok) throw new Error(await res.text());
+        const raw = await res.json();
+        _lastAssignmentsRaw = raw;
+        if (!skipSubjectRebuild) rebuildAssignSubjectFilter(raw);
+        const filtered = filterAssignmentsForDisplay(raw);
+        if (!filtered.length) {
+          list.innerHTML = '<p class="assign-empty">No assignments for this filter.</p>';
+          return;
+        }
+        filtered.sort((a, b) => {
+          const da = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+          const db = b.due_at ? new Date(b.due_at).getTime() : Infinity;
+          return da - db;
+        });
+        list.innerHTML = filtered.map(a => renderAssignmentCard(a, sid)).join('');
+      } catch (e) {
+        err.textContent = String(e.message || e);
+        err.style.display = 'block';
+        list.innerHTML = '';
+      }
+    }
+
+    document.getElementById('assign-subject').addEventListener('change', () => {
+      if (!_lastAssignmentsRaw.length) return;
+      const sid = document.getElementById('assign-student').value;
+      if (!sid) return;
+      const filtered = filterAssignmentsForDisplay(_lastAssignmentsRaw);
+      const list = document.getElementById('assign-list');
+      if (!filtered.length) {
+        list.innerHTML = '<p class="assign-empty">No assignments for this filter.</p>';
+        return;
+      }
+      filtered.sort((a, b) => {
+        const da = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+        const db = b.due_at ? new Date(b.due_at).getTime() : Infinity;
+        return da - db;
+      });
+      list.innerHTML = filtered.map(a => renderAssignmentCard(a, sid)).join('');
+    });
+
     function applyHashTab() {
       const h = (location.hash || '').replace(/^#/, '');
-      const valid = ['students', 'spelling', 'dictation-progress', 'dictionary'];
+      const valid = ['students', 'spelling', 'dictation-progress', 'dictionary', 'assignments'];
       if (valid.includes(h)) activateTab(h);
     }
 
