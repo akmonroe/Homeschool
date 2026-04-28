@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from datetime import date
 
@@ -10,13 +9,8 @@ import requests
 
 from app.apps.dictation import database
 from app.apps.dictation import dictation_lexemes as lex
+from app.apps.dictation.ollama_settings import DICTATION_OLLAMA_MODEL, OLLAMA_GENERATE_URL
 from app.core.database import session_scope
-
-OLLAMA_GENERATE_URL = os.getenv(
-    "OLLAMA_GENERATE_URL",
-    f"{os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434').rstrip('/')}/api/generate",
-)
-DICTATION_OLLAMA_MODEL = os.getenv("DICTATION_OLLAMA_MODEL", "gemma4:e4b")
 
 
 def ensure_dictation_user(core_student_id: str, display_name: str, difficulty_level: int) -> int:

@@ -92,6 +92,7 @@
         <h2 id="progress-text">Word 1 of ?</h2>
         
         <button class="btn-listen" id="btn-listen" onclick="playAudio()">🔊 Listen to Sentence</button>
+        <p id="listen-hint" style="display:none;font-size:0.9em;color:#7f8c8d;margin:6px 0 0;">Same sentence each time until you go to the next word.</p>
         <div class="btn-row">
             <button type="button" class="btn-word" id="btn-word-only" disabled onclick="playWordOnly()">🎯 Hear Word Only</button>
             <button type="button" class="btn-again" id="btn-sentence-again" disabled onclick="playSentenceAgain()">🔁 Sentence Again</button>
@@ -128,6 +129,8 @@
         let lastSentenceAudioUrl = "";
         let lastWordAudioUrl = "";
         let audioReady = false;
+        /** Matches server /generate revision so browser cache busts only when audio is regenerated. */
+        let audioRevision = 0;
 
         function escapeRegExp(s) {
             return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -210,8 +213,10 @@
             }
             currentDisplayWord = dw || (currentTargetWord.charAt(0).toUpperCase() + currentTargetWord.slice(1));
             audioReady = false;
+            audioRevision = 0;
             lastSentenceAudioUrl = "";
             lastWordAudioUrl = "";
+            document.getElementById('listen-hint').style.display = 'none';
             document.getElementById('btn-word-only').disabled = true;
             document.getElementById('btn-sentence-again').disabled = true;
             document.getElementById('progress-text').innerText = `Word ${currentIndex + 1} of ${dueWords.length}`;
@@ -236,44 +241,46 @@
         async function playAudio() {
             const btn = document.getElementById('btn-listen');
             const loading = document.getElementById('loading');
-            
-            // Disable the button so kids don't spam it while it generates
+            const firstTime = !audioReady;
             btn.disabled = true;
-            loading.style.display = 'block';
-
+            if (firstTime) {
+                loading.style.display = 'block';
+            }
             try {
-                // Tell Gemma 4 and XTTS to create the sentence
                 const response = await fetch(`${API_BASE}/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ word: currentDisplayWord })
+                    body: JSON.stringify({ word: currentDisplayWord, regenerate: false })
                 });
                 const data = await response.json();
 
                 if (data.status === 'success') {
+                    const rev = typeof data.revision === 'number' ? data.revision : 0;
+                    audioRevision = rev;
                     const ts = Date.now();
                     lastSentenceAudioUrl = resolveAudioUrl(data.audio_url);
                     lastWordAudioUrl = resolveAudioUrl(data.word_audio_url || '/apps/dictation/audio/word');
 
                     const audioPlayer = document.getElementById('audio-player');
                     const sep = lastSentenceAudioUrl.includes('?') ? '&' : '?';
-                    audioPlayer.src = lastSentenceAudioUrl + sep + 't=' + ts;
+                    audioPlayer.src = lastSentenceAudioUrl + sep + 'r=' + rev + '&t=' + ts;
                     audioPlayer.play();
 
                     const blankLen = Math.max(currentDisplayWord.replace(/\s/g, '').length, 3);
                     const blank = '_'.repeat(blankLen);
                     const regex = new RegExp(`\\b${escapeRegExp(currentDisplayWord)}\\b|\\b${escapeRegExp(currentTargetWord)}\\b`, 'gi');
                     const blankedSentence = data.sentence.replace(regex, blank);
-                    
+
                     const sentenceEl = document.getElementById('sentence-hint');
                     sentenceEl.innerText = blankedSentence;
                     sentenceEl.style.display = 'block';
+                    document.getElementById('listen-hint').style.display = 'block';
                     document.getElementById('btn-hint').style.display = 'inline-block';
                     audioReady = true;
                     document.getElementById('btn-word-only').disabled = false;
                     document.getElementById('btn-sentence-again').disabled = false;
                 }
-            
+
             } catch (e) {
                 alert("Error generating audio!");
             }
@@ -286,7 +293,7 @@
             if (!audioReady || !lastSentenceAudioUrl) return;
             const audioPlayer = document.getElementById('audio-player');
             const sep = lastSentenceAudioUrl.includes('?') ? '&' : '?';
-            audioPlayer.src = lastSentenceAudioUrl + sep + 't=' + Date.now();
+            audioPlayer.src = lastSentenceAudioUrl + sep + 'r=' + audioRevision + '&t=' + Date.now();
             audioPlayer.play();
         }
 
@@ -294,7 +301,7 @@
             if (!audioReady || !lastWordAudioUrl) return;
             const audioPlayer = document.getElementById('audio-player');
             const sep = lastWordAudioUrl.includes('?') ? '&' : '?';
-            audioPlayer.src = lastWordAudioUrl + sep + 't=' + Date.now();
+            audioPlayer.src = lastWordAudioUrl + sep + 'r=' + audioRevision + '&t=' + Date.now();
             audioPlayer.play();
         }
 

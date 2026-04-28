@@ -108,9 +108,11 @@ Suite-level **assignments** (e.g. from platform admin when committing an AI word
 ## 4. Cross-store flows
 
 1. **Create core student** → sync SQLite `users` row with `core_student_id`.
-2. **Dictionary admin / CSV** → upserts **`core.lexemes`**.
+2. **Platform admin → Dictionary tab** (view/edit) or **import script / `POST /apps/dictation/words/bulk-upload`** → upserts **`core.lexemes`**.
 3. **Assign words** (API or AI commit) → **`core.dictation_assignments`** + optional **`core.assignments`** (suite record).
 4. **Student plays** → reads due rows from **`dictation_assignments`** + **`lexemes`**; grades write **`dictation_attempts`** and update the assignment row.
+
+Dictation **practice sentence audio** is **not** stored in Postgres or SQLite; it is generated on demand (Ollama + Coqui VITS + optional ffmpeg tempo) and written to WAV files on the `dictation-data` volume. Lexeme text and hints for study still come from **`core.lexemes`**.
 
 ---
 
@@ -123,8 +125,13 @@ Suite-level **assignments** (e.g. from platform admin when committing an AI word
 | Dictation HTTP: dictionary | `app/apps/dictation/routers/dictionary.py` (uses `get_core_pg_session`) |
 | Dictation HTTP: study | `app/apps/dictation/routers/study.py` |
 | Progress API | `app/apps/dictation/routers/users.py` (`/users/{id}/progress` → Postgres) |
+| Dictation Ollama env | `app/apps/dictation/ollama_settings.py` |
+| Dictation TTS post-process (tempo, speaker env) | `app/apps/dictation/dictation_tts.py` |
+| Dictation sub-app: generate, audio, static, VITS startup | `app/apps/dictation/dictation_app.py` |
 | ORM models | `app/core/models.py` |
 | FastAPI Postgres session dep | `app/core/deps.py` |
+| Platform admin UI (students, AI words, progress chart, dictionary) | `app/static/admin/index.html` |
+| Root app: admin routes, portal, lifespan | `app/main.py` |
 
 ---
 
@@ -154,4 +161,4 @@ Bundled CSVs are **study-style** vocabulary lists, not a substitute for official
 - **Backups:** Postgres volume + `dictation-data` (SQLite) for profile ids.
 - **Migrating old SQLite `words`:** one-off script: read old DB → `INSERT`/`upsert` into `core.lexemes` and rebuild `dictation_assignments` from old `user_words` if you still have a legacy file.
 
-**Last reviewed:** after `import_school_spelling_words.py` and lexeme `extensions` enrichment workflow.
+**Last reviewed:** dictation generate cache + TTS pipeline documented in [ARCHITECTURE.md](./ARCHITECTURE.md); admin dictionary tab (full lexeme summaries).

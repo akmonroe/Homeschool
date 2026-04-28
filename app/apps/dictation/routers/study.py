@@ -8,13 +8,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.dictation import dictation_lexemes as lex
+from app.apps.dictation.ollama_settings import DICTATION_OLLAMA_MODEL, OLLAMA_GENERATE_URL
 from app.core.deps import get_core_pg_session
-
-OLLAMA_GENERATE_URL = __import__("os").getenv(
-    "OLLAMA_GENERATE_URL",
-    f"{__import__('os').getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434').rstrip('/')}/api/generate",
-)
-DICTATION_OLLAMA_MODEL = __import__("os").getenv("DICTATION_OLLAMA_MODEL", "gemma4:e4b")
 
 router = APIRouter(tags=["Study & Curriculum"])
 

@@ -2,25 +2,37 @@
 Repository for AI-enabled homeschooling apps. This monorepo-style layout will
 grow with multiple apps; the first integrated app will be **Dictation**.
 
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [docs/DATABASE.md](docs/DATABASE.md) | Postgres `core` vs SQLite dictation, tables, bulk import, code map |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | URLs, dictation generate/TTS, env vars, Docker, refactoring backlog |
+
 ## Web portal
 
 After you start the stack, open **http://localhost:4500/** for a landing page
 that links to each app and to the shared API documentation (`/docs`).
 
-- **Platform admin** (students + AI word planner) — **`http://localhost:4500/admin/`**
-  (or **`http://localhost:4500/admin`** — redirects to the trailing slash). Served from
-  `app/static/admin/index.html`. Requires Postgres: if the page loads but API calls fail,
-  check **`DATABASE_URL`** and `docker compose ps` (Postgres must be healthy).
-- **Dictation admin** (dictionary table + progress chart only) — **`http://localhost:4500/apps/dictation/ui/admin.html`**
-  (not the same URL as platform admin).
+- **Platform admin** (students, AI word planner, dictation progress chart, master dictionary
+  summaries + level/definition edit) — **`http://localhost:4500/admin/`** (or **`http://localhost:4500/admin`**
+  — redirects to the trailing slash). Deep links: `#students`, `#spelling`, `#dictation-progress`,
+  `#dictionary`. Served from `app/static/admin/index.html`. Requires Postgres: if the page loads
+  but API calls fail, check **`DATABASE_URL`** and `docker compose ps` (Postgres must be healthy).
+- **Legacy URL** `/apps/dictation/ui/admin.html` redirects to **`/admin/`**.
 - **Dictation** — student UI at **http://localhost:4500/apps/dictation/ui/**. REST API under **`/apps/dictation`**;
   OpenAPI: **`/apps/dictation/docs`**. SQLite and generated audio persist in the
   **`dictation-data`** Docker volume (`/app/data` in the container).
 
   Dictation uses **`DICTATION_OLLAMA_MODEL`** (default `gemma4:e4b`) for
-  `/api/generate` calls to your host Ollama. On first start, **uvicorn waits**
+  **`POST /apps/dictation/generate`** (sentence text via Ollama). On first start, **uvicorn waits**
   while Coqui downloads the VITS weights into the container; HTTP may reset
   until you see `Application startup complete` in the logs.
+
+  **TTS (VITS + ffmpeg):** `DICTATION_TTS_SPEAKER` (VCTK id, default `p225`), `DICTATION_TTS_PLAYBACK_TEMPO`
+  (default `0.58` — lower is slower/clearer), optional `DICTATION_TTS_WORD_PLAYBACK_TEMPO`. Speech is synthesized as one clip (`split_sentences=false`), then slowed with ffmpeg `atempo` (falls back to raw VITS if ffmpeg fails).
+
+  **`POST /apps/dictation/generate`** accepts JSON `{ "word": "<surface form>", "regenerate": false }`. With **`regenerate: false`** (student UI default), the server **reuses** the last sentence and WAV files for that spelling word until practice moves on — so “Listen to Sentence” does not call Ollama again. Response includes **`revision`** (increment when a new sentence is synthesized), **`from_cache`**, plus **`sentence`**, **`audio_url`**, **`word_audio_url`**.
 
 ## Core platform (PostgreSQL)
 
@@ -50,6 +62,20 @@ alembic upgrade head
 
 (App runtime uses **`postgresql+asyncpg://`** in `DATABASE_URL` inside Docker.)
 
+### Words and dictionary
+
+- **Operator UI:** `/admin/` → **Dictionary** tab — full per-word summary (definition, pronunciation, etymology, spelling tips, full `extensions` JSON) plus inline edit of level and definition (Postgres `core.lexemes`). Bulk CSV remains available via **`POST /apps/dictation/words/bulk-upload`** for scripts if needed.
+- **Browse / verify:** `/apps/dictation/ui/review.html` — paginated list including `extensions` (pronunciation, etymology, spelling tips) when populated.
+- **Rich import (CLI):** `scripts/import_school_spelling_words.py` — merges API + Wiktionary data into `extensions`. Example with Compose:
+
+```bash
+docker compose exec app sh -c \
+  'export DATABASE_URL_SYNC=postgresql://homeschool:homeschool@postgres:5432/homeschool && \
+   python scripts/import_school_spelling_words.py --csv app/apps/dictation/resources/words/spellingListtwobee.csv'
+```
+
+See [docs/DATABASE.md](docs/DATABASE.md) for schema detail and licensing notes on external word lists.
+
 ## Base development stack
 
 This repository provides a Docker Compose foundation for Python FastAPI
@@ -73,6 +99,12 @@ used without starting Ollama in Compose:
 
 ```bash
 docker compose up --build
+```
+
+After **code or static file** changes, rebuild the `app` image so the container picks them up (the app source is copied at build time, not bind-mounted):
+
+```bash
+docker compose build app && docker compose up -d
 ```
 
 To **instead** run Ollama in Docker (pulls `ollama/ollama` the first time), use

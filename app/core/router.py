@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.database import core_db_enabled, session_scope
+from app.core.database import core_db_enabled
+from app.core.deps import get_core_pg_session
 from app.core.models import Assignment, AssignmentItem, Grade, Project, SkillObservation, Student
 from app.apps.dictation import session_words as dictation_session
 from app.core.schemas import (
@@ -36,18 +37,7 @@ from app.core.schemas import (
 
 router = APIRouter(prefix="/core", tags=["Core (Postgres)"])
 
-
-async def get_session():
-    if not core_db_enabled():
-        raise HTTPException(
-            status_code=503,
-            detail="Core database is not configured. Set DATABASE_URL (postgresql+asyncpg://...).",
-        )
-    async with session_scope() as session:
-        yield session
-
-
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
+SessionDep = Annotated[AsyncSession, Depends(get_core_pg_session)]
 
 
 @router.get("/health")
