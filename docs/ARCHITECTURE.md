@@ -32,6 +32,11 @@ A **single** FastAPI application (`app/main.py`) owns:
 - **`/core/*`** — shared Postgres domain (students, suite assignments with **`available_from`** / **`due_at`**, grades with **`completed_at`** / **`graded_at`**, dictation session draft/commit)
 - **`/apps/dictation/*`** — dictation REST (users, words, study, generate, audio)
 
+### AI spelling draft (`POST /core/students/{id}/dictation-session/draft`)
+
+- **`target_daily_words`** in the request body is the **count of new words to ask the model for** (1–50), not “top up the queue to a total.”
+- Response **`due_count`** is how many words are **already in the practice backlog** (`next_review_date <= today`); it is **informational** and does not reduce the batch size (older code incorrectly used `target - due_count` and could request zero new words when backlog was large).
+
 ### Dictation practice audio (`POST /apps/dictation/generate`)
 
 | Field / behavior | Notes |
