@@ -112,9 +112,20 @@
     @media (min-width: 480px) {
       .assign-form-row.two { grid-template-columns: 1fr 1fr; }
     }
+    .assign-actions { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+    @media (min-width: 420px) {
+      .assign-actions { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 12px; }
+      .btn-assign-save { flex: 2; margin-top: 0 !important; }
+      .btn-assign-delete { flex: 1; margin-top: 0 !important; }
+    }
     .btn-assign-save {
       width: 100%; margin-top: 14px; min-height: 48px; font-size: 1rem;
       background: #0d9488; color: #fff; border: none; border-radius: 10px;
+      font-weight: 600; cursor: pointer;
+    }
+    .btn-assign-delete {
+      width: 100%; min-height: 48px; font-size: 1rem;
+      background: #fef2f2; color: #b91c1c; border: 2px solid #fecaca; border-radius: 10px;
       font-weight: 600; cursor: pointer;
     }
     .assign-empty { color: #64748b; padding: 20px; text-align: center; }
@@ -640,7 +651,10 @@
           </div>
           <label for="ainstr-${wid}">Instructions</label>
           <textarea id="ainstr-${wid}" rows="3">${escapeHtml(instr)}</textarea>
-          <button type="button" class="btn-assign-save" data-student-id="${escapeAttr(studentId)}" data-assignment-id="${aid}" onclick="saveAssignmentFromBtn(this)">Save changes</button>
+          <div class="assign-actions">
+            <button type="button" class="btn-assign-save" data-student-id="${escapeAttr(studentId)}" data-assignment-id="${aid}" onclick="saveAssignmentFromBtn(this)">Save changes</button>
+            <button type="button" class="btn-assign-delete" data-student-id="${escapeAttr(studentId)}" data-assignment-id="${aid}" data-assignment-title="${escapeAttr(a.title || '')}" onclick="deleteAssignmentFromBtn(this)">Delete</button>
+          </div>
         </div>
       </details>`;
     }
@@ -677,6 +691,25 @@
         await loadAssignmentsPanel(true);
       } catch (e) {
         alert('Save failed: ' + (e.message || e));
+      }
+      btn.disabled = false;
+    }
+
+    async function deleteAssignmentFromBtn(btn) {
+      const sid = btn.getAttribute('data-student-id');
+      const aid = btn.getAttribute('data-assignment-id');
+      const t = btn.getAttribute('data-assignment-title') || 'this assignment';
+      if (!confirm(`Delete "${t}"? This cannot be undone. Assignment items are removed; grades keep a record but lose the link.`)) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/assignments/${aid}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) {
+          const txt = await res.text();
+          throw new Error(txt || res.status);
+        }
+        await loadAssignmentsPanel(true);
+      } catch (e) {
+        alert('Delete failed: ' + (e.message || e));
       }
       btn.disabled = false;
     }

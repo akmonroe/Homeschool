@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, or_, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -316,6 +316,26 @@ async def update_assignment(
     await session.flush()
     await session.refresh(row)
     return row
+
+
+@router.delete("/students/{student_id}/assignments/{assignment_id}", status_code=204)
+async def delete_assignment(
+    session: SessionDep,
+    student_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+):
+    """Remove assignment; FKs on grades/skill_observations use ON DELETE SET NULL; items CASCADE."""
+    await _require_student(session, student_id)
+    result = await session.execute(
+        delete(Assignment).where(
+            Assignment.id == assignment_id,
+            Assignment.student_id == student_id,
+        )
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    await session.flush()
+    return Response(status_code=204)
 
 
 @router.post(
