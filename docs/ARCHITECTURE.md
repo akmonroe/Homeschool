@@ -29,7 +29,7 @@ A **single** FastAPI application (`app/main.py`) owns:
 
 **API prefixes**
 
-- **`/core/*`** — shared Postgres domain (students, suite assignments, dictation session draft/commit)
+- **`/core/*`** — shared Postgres domain (students, suite assignments with **`available_from`** / **`due_at`**, grades with **`completed_at`** / **`graded_at`**, dictation session draft/commit)
 - **`/apps/dictation/*`** — dictation REST (users, words, study, generate, audio)
 
 ### Dictation practice audio (`POST /apps/dictation/generate`)

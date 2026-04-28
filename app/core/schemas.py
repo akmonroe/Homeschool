@@ -57,10 +57,29 @@ class AssignmentCreate(BaseModel):
     project_id: uuid.UUID | None = None
     app_slug: str | None = None
     status: str = "draft"
-    due_at: datetime | None = None
+    available_from: datetime | None = Field(
+        None,
+        description="When the assignment becomes available (timezone-aware). Null = no start gate.",
+    )
+    due_at: datetime | None = Field(
+        None,
+        description="When the assignment is due (timezone-aware). Null = no fixed deadline.",
+    )
     instructions: str | None = None
     rubric_json: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AssignmentUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=500)
+    project_id: uuid.UUID | None = None
+    app_slug: str | None = None
+    status: str | None = None
+    available_from: datetime | None = None
+    due_at: datetime | None = None
+    instructions: str | None = None
+    rubric_json: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class AssignmentOut(BaseModel):
@@ -72,6 +91,7 @@ class AssignmentOut(BaseModel):
     title: str
     app_slug: str | None
     status: str
+    available_from: datetime | None
     due_at: datetime | None
     instructions: str | None
     rubric_json: dict[str, Any] | None
@@ -107,6 +127,14 @@ class GradeCreate(BaseModel):
     feedback: str | None = None
     rubric_scores_json: dict[str, Any] | None = None
     evidence_refs_json: list[Any] | dict[str, Any] | None = None
+    completed_at: datetime | None = Field(
+        None,
+        description="When the learner finished/submitted the work (timezone-aware).",
+    )
+    graded_at: datetime | None = Field(
+        None,
+        description="When the grade was recorded; defaults to request time if omitted.",
+    )
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -125,7 +153,24 @@ class GradeOut(BaseModel):
     rubric_scores_json: dict[str, Any] | None
     evidence_refs_json: list[Any] | dict[str, Any] | None
     metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
+    completed_at: datetime | None
+    graded_at: datetime | None
     created_at: datetime
+
+
+class GradeUpdate(BaseModel):
+    assignment_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
+    scored_by: str | None = None
+    score_numeric: float | None = None
+    score_max: float | None = None
+    letter: str | None = None
+    feedback: str | None = None
+    rubric_scores_json: dict[str, Any] | None = None
+    evidence_refs_json: list[Any] | dict[str, Any] | None = None
+    completed_at: datetime | None = None
+    graded_at: datetime | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class SkillObservationCreate(BaseModel):

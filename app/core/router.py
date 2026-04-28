@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,12 +21,14 @@ from app.core.schemas import (
     AssignmentItemCreate,
     AssignmentItemOut,
     AssignmentOut,
+    AssignmentUpdate,
     DictationSessionCommitRequest,
     DictationSessionCommitResponse,
     DictationSessionDraftRequest,
     DictationSessionDraftResponse,
     GradeCreate,
     GradeOut,
+    GradeUpdate,
     ProjectCreate,
     ProjectOut,
     SkillObservationCreate,
@@ -38,6 +41,10 @@ from app.core.schemas import (
 router = APIRouter(prefix="/core", tags=["Core (Postgres)"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_core_pg_session)]
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 @router.get("/health")
@@ -175,12 +182,15 @@ async def commit_dictation_word_session(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    now = _utc_now()
     assign = Assignment(
         student_id=student_id,
         project_id=None,
         title="Spelling words (dictation)",
         app_slug="dictation",
         status="assigned",
+        available_from=now,
+        due_at=now + timedelta(days=7),
         instructions="Words assigned from Homeschool admin for dictation practice.",
         rubric_json=None,
         metadata_={"dictation_user_id": uid, "word_count": len(words)},
@@ -235,14 +245,33 @@ async def create_project(session: SessionDep, student_id: uuid.UUID, body: Proje
 
 
 @router.get("/students/{student_id}/assignments", response_model=list[AssignmentOut])
-async def list_assignments(session: SessionDep, student_id: uuid.UUID):
+async def list_assignments(
+    session: SessionDep,
+    student_id: uuid.UUID,
+    active: bool = Query(
+        False,
+        description="If true, only rows that are currently in-window (available_from reached and not past due_at).",
+    ),
+):
     await _require_student(session, student_id)
-    result = await session.scalars(
+    q = (
         select(Assignment)
         .where(Assignment.student_id == student_id)
         .options(selectinload(Assignment.items))
-        .order_by(Assignment.created_at.desc())
     )
+    if active:
+        now = _utc_now()
+        q = q.where(
+            and_(
+                or_(Assignment.available_from.is_(None), Assignment.available_from <= now),
+                or_(Assignment.due_at.is_(None), Assignment.due_at >= now),
+            )
+        )
+    if active:
+        q = q.order_by(Assignment.due_at.asc(), Assignment.created_at.desc())
+    else:
+        q = q.order_by(Assignment.created_at.desc())
+    result = await session.scalars(q)
     return list(result)
 
 
@@ -259,12 +288,31 @@ async def create_assignment(session: SessionDep, student_id: uuid.UUID, body: As
         title=body.title,
         app_slug=body.app_slug,
         status=body.status,
+        available_from=body.available_from,
         due_at=body.due_at,
         instructions=body.instructions,
         rubric_json=body.rubric_json,
         metadata_=body.metadata,
     )
     session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    return row
+
+
+@router.patch("/students/{student_id}/assignments/{assignment_id}", response_model=AssignmentOut)
+async def update_assignment(
+    session: SessionDep,
+    student_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    body: AssignmentUpdate,
+):
+    row = await _require_assignment(session, student_id, assignment_id)
+    data = body.model_dump(exclude_unset=True)
+    if "metadata" in data:
+        data["metadata_"] = data.pop("metadata")
+    for k, v in data.items():
+        setattr(row, k, v)
     await session.flush()
     await session.refresh(row)
     return row
@@ -311,6 +359,8 @@ async def create_grade(session: SessionDep, student_id: uuid.UUID, body: GradeCr
         p = await session.get(Project, body.project_id)
         if not p or p.student_id != student_id:
             raise HTTPException(status_code=400, detail="Invalid project_id for this student")
+    now = _utc_now()
+    graded_at = body.graded_at if body.graded_at is not None else now
     row = Grade(
         student_id=student_id,
         assignment_id=body.assignment_id,
@@ -322,9 +372,38 @@ async def create_grade(session: SessionDep, student_id: uuid.UUID, body: GradeCr
         feedback=body.feedback,
         rubric_scores_json=body.rubric_scores_json,
         evidence_refs_json=body.evidence_refs_json,
+        completed_at=body.completed_at,
+        graded_at=graded_at,
         metadata_=body.metadata,
     )
     session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    return row
+
+
+@router.patch("/students/{student_id}/grades/{grade_id}", response_model=GradeOut)
+async def update_grade(
+    session: SessionDep,
+    student_id: uuid.UUID,
+    grade_id: uuid.UUID,
+    body: GradeUpdate,
+):
+    await _require_student(session, student_id)
+    row = await session.get(Grade, grade_id)
+    if not row or row.student_id != student_id:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    if body.assignment_id is not None and body.assignment_id:
+        await _require_assignment(session, student_id, body.assignment_id)
+    if body.project_id is not None and body.project_id:
+        p = await session.get(Project, body.project_id)
+        if not p or p.student_id != student_id:
+            raise HTTPException(status_code=400, detail="Invalid project_id for this student")
+    data = body.model_dump(exclude_unset=True)
+    if "metadata" in data:
+        data["metadata_"] = data.pop("metadata")
+    for k, v in data.items():
+        setattr(row, k, v)
     await session.flush()
     await session.refresh(row)
     return row

@@ -48,7 +48,8 @@ schema is always present.
   - `GET /core/students/{id}/assignments`, `POST .../assignments`
   - `POST .../assignments/{id}/items` — agent-friendly steps (`item_type` +
     `payload_json`)
-  - `GET/POST .../grades`, `GET/POST .../skills`
+  - `GET/POST .../grades`, `PATCH .../grades/{grade_id}`, `GET/POST .../skills`
+  - Assignments support **`available_from`**, **`due_at`**, and `GET .../assignments?active=true`; **`PATCH .../assignments/{id}`** updates schedule fields.
 
 Use **`metadata`** JSON on rows for extensibility; use **`rubric_json`** /
 **`rubric_scores_json`** for structured AI or human scoring later.

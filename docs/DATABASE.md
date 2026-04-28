@@ -79,13 +79,32 @@ Replaces SQLite `history`.
 
 ---
 
-### 2.5 Other `core` tables (unchanged conceptually)
+### 2.5 `core.assignments` — suite-level work (scheduling + due dates)
 
-See `app/core/models.py` and migration `0001_core` for:
+| Column | Type | Notes |
+|--------|------|--------|
+| `available_from` | `TIMESTAMPTZ` nullable | First instant the assignment “opens”. Null = no start restriction. |
+| `due_at` | `TIMESTAMPTZ` nullable | Deadline. Null = no fixed due date. Indexed for queries. |
 
-- `students`, `projects`, `assignments`, `assignment_items`, `grades`, `skill_observations`
+Use **`GET /core/students/{id}/assignments?active=true`** for rows whose window contains “now” (`available_from` passed or null, and `due_at` not passed or null).
 
-Suite-level **assignments** (e.g. from platform admin when committing an AI word list) remain separate from **`dictation_assignments`** (per-word queue for the game).
+Dictation AI commits create an **`assignments`** row with **`available_from`** set to “now” and **`due_at`** seven days later by default (adjust via **`PATCH`**).
+
+### 2.6 `core.grades` — scores linked to assignments
+
+**FK:** `assignment_id` → `core.assignments.id` (nullable). One assignment may have multiple grades over time (regrades); use **`graded_at`** / metadata if you need uniqueness rules in application logic.
+
+| Column | Type | Notes |
+|--------|------|--------|
+| `completed_at` | `TIMESTAMPTZ` nullable | When the learner finished/submitted the work. |
+| `graded_at` | `TIMESTAMPTZ` nullable | When the grade was recorded; **`POST /grades`** defaults this to “now” if omitted. |
+| `score_numeric`, `score_max`, `letter`, … | | Existing score fields. |
+
+### 2.7 Other `core` tables
+
+See `app/core/models.py` and migrations for **`assignment_items`**, **`skill_observations`**, etc.
+
+Suite-level **assignments** (above) remain separate from **`dictation_assignments`** (per-word queue for the dictation game).
 
 ---
 
@@ -161,4 +180,4 @@ Bundled CSVs are **study-style** vocabulary lists, not a substitute for official
 - **Backups:** Postgres volume + `dictation-data` (SQLite) for profile ids.
 - **Migrating old SQLite `words`:** one-off script: read old DB → `INSERT`/`upsert` into `core.lexemes` and rebuild `dictation_assignments` from old `user_words` if you still have a legacy file.
 
-**Last reviewed:** dictation generate cache + TTS pipeline documented in [ARCHITECTURE.md](./ARCHITECTURE.md); admin dictionary tab (full lexeme summaries).
+**Last reviewed:** migration **`0003_assignment_schedule`** (`available_from`, grade **`completed_at`** / **`graded_at`**); see [ARCHITECTURE.md](./ARCHITECTURE.md).
