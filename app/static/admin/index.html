@@ -172,8 +172,9 @@
     <p class="hint">Uses Ollama. Words are saved to dictation and recorded as a core assignment.</p>
     <label for="spell-student">Student</label>
     <select id="spell-student"><option value="">Loading…</option></select>
-    <label for="spell-count">Target words for today’s lesson (total desired)</label>
+    <label for="spell-count">How many new words to suggest (AI)</label>
     <input id="spell-count" type="number" min="1" max="50" value="10" />
+    <p class="hint" style="margin-top:4px">Does not depend on how many words are already due for practice—those are listed separately after you click Ask AI.</p>
     <button type="button" class="btn btn-ai" id="btn-draft" onclick="draftSpelling()">Ask AI for suggestions</button>
     <div id="draft-box" class="draft-box">
       <p id="draft-status" style="font-weight:600;margin-top:0"></p>
@@ -364,7 +365,7 @@
         const data = await res.json();
         document.getElementById('draft-box').style.display = 'block';
         document.getElementById('draft-status').textContent =
-          `${data.due_count} words due today. Suggested ${data.suggested_words.length} new words (skill ${data.difficulty}).`;
+          `${data.due_count} word(s) already due for practice (backlog). Suggested ${data.suggested_words.length} new word(s) to add (skill ${data.difficulty}). Edit the list, then approve to assign.`;
         document.getElementById('draft-words').value = data.suggested_words.join(', ');
       } catch (e) {
         document.getElementById('spell-err').textContent = String(e.message || e);

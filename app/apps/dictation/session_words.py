@@ -67,13 +67,17 @@ async def draft_daily_session_dictation(user_id: int, target_daily_words: int) -
         known = await lex.known_words_for_user(session, user_id)
         due_count = await lex.count_due_for_user(session, user_id)
 
-    shortfall = target_daily_words - due_count
+    # How many brand-new words to ask the model for (same as admin "target" count).
+    # NOTE: We intentionally do NOT subtract due_count. Legacy logic used
+    # shortfall = target - due_count which blocked all suggestions whenever the student
+    # already had more due words than the target (e.g. 19 due vs 10 target → 0 new words).
+    n_new = max(1, min(int(target_daily_words), 50))
     new_words: list[str] = []
 
-    if shortfall > 0:
+    if n_new > 0:
         known_str = ", ".join(known) if known else "none"
         prompt = (
-            f"You are an elementary spelling teacher. Generate a comma-separated list of EXACTLY {shortfall} "
+            f"You are an elementary spelling teacher. Generate a comma-separated list of EXACTLY {n_new} "
             f"new spelling words appropriate for a student at skill level {difficulty} out of 10 "
             "(where 1 means basic 3-letter words and 10 means advanced middle-school words). "
             f"DO NOT use any of these words: {known_str}. Output ONLY the comma-separated words, nothing else."

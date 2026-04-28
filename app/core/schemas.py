@@ -187,7 +187,12 @@ class SkillObservationCreate(BaseModel):
 
 
 class DictationSessionDraftRequest(BaseModel):
-    target_daily_words: int = Field(10, ge=1, le=50)
+    target_daily_words: int = Field(
+        10,
+        ge=1,
+        le=50,
+        description="How many new words the AI should suggest (not reduced by current backlog).",
+    )
 
 
 class DictationSessionDraftResponse(BaseModel):
