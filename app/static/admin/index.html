@@ -146,6 +146,7 @@
     <button type="button" data-tab="assignments">Assignments</button>
     <button type="button" data-tab="spelling">Spelling words (AI)</button>
     <button type="button" data-tab="dictation-progress">Dictation progress</button>
+    <button type="button" data-tab="dictation-audio">Dictation audio</button>
     <button type="button" data-tab="dictionary">Dictionary</button>
   </div>
 
@@ -187,6 +188,27 @@
     </div>
     <p id="spell-err" class="err" style="display:none"></p>
     <p id="spell-ok" class="ok" style="display:none"></p>
+  </div>
+
+  <div id="dictation-audio" class="panel">
+    <h2 style="margin-top:0;font-size:1.1rem">Dictation audio (TTS)</h2>
+    <p class="hint">VCTK voice and playback speed for the <strong>student</strong> dictation app. Lower speed = slower, clearer (same scale as <code>DICTATION_TTS_*</code> in Docker: 0.25–1.0). <strong>Save</strong> applies in memory until you reset or restart the app.</p>
+    <p id="dict-audio-err" class="err" style="display:none"></p>
+    <p id="dict-audio-ok" class="ok" style="display:none"></p>
+    <label for="dict-tts-voice">Voice (speaker id)</label>
+    <select id="dict-tts-voice" style="font-size:16px;max-width:100%"></select>
+    <label for="dict-tts-sent">Sentence speed</label>
+    <input id="dict-tts-sent" type="number" min="0.25" max="1" step="0.01" value="0.58" style="max-width:160px" />
+    <p class="hint" style="margin-top:0">1.0 = no slowdown; 0.58 ≈ default.</p>
+    <label for="dict-tts-word">Word speed</label>
+    <input id="dict-tts-word" type="number" min="0.25" max="1" step="0.01" value="0.65" style="max-width:160px" />
+    <p class="hint" style="margin-top:0">Often slightly faster than the sentence.</p>
+    <p id="dict-tts-env-hint" class="hint" style="margin-top:8px">Env defaults: —</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px">
+      <button type="button" class="btn btn-primary" onclick="saveTtsSettings()">Save settings</button>
+      <button type="button" class="btn btn-secondary" onclick="loadTtsSettingsPanel()">Reload</button>
+      <button type="button" class="btn btn-secondary" onclick="resetTtsToEnv()">Use Docker env only</button>
+    </div>
   </div>
 
   <div id="dictation-progress" class="panel panel-wide">
@@ -241,6 +263,7 @@
       if (tabId === 'dictation-progress') loadDictationProfilesForChart({});
       if (tabId === 'assignments') loadAssignmentsPanel();
       if (tabId === 'spelling') ensureSpellAssignDueDefault();
+      if (tabId === 'dictation-audio') loadTtsSettingsPanel();
     }
 
     document.querySelectorAll('.tabs button').forEach(btn => {
@@ -535,6 +558,92 @@
       </article>`;
     }
 
+    async function loadTtsSettingsPanel() {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      document.getElementById('dict-audio-ok').style.display = 'none';
+      const envHint = document.getElementById('dict-tts-env-hint');
+      const voiceSel = document.getElementById('dict-tts-voice');
+      try {
+        const [sRes, tRes] = await Promise.all([
+          fetch(`${DICTATION}/tts-voices`),
+          fetch(`${DICTATION}/tts-settings`)
+        ]);
+        if (!sRes.ok) throw new Error(await sRes.text());
+        if (!tRes.ok) throw new Error(await tRes.text());
+        const { speakers } = await sRes.json();
+        const t = await tRes.json();
+        const eff = t.effective || {};
+        const env = t.env || {};
+        const envParts = [];
+        if (env.speaker != null) envParts.push('voice ' + env.speaker);
+        if (env.sentence_tempo != null) envParts.push('sentence ' + env.sentence_tempo);
+        if (env.word_tempo != null) envParts.push('word ' + env.word_tempo);
+        envHint.textContent = envParts.length
+          ? 'Env defaults: ' + envParts.join(', ') + ' (from DICTATION_TTS_* in Docker / host).'
+          : 'Env defaults: (not reported — check container env).';
+        const list = (speakers && speakers.length) ? speakers : ['p225'];
+        const cur = (eff.speaker || env.speaker || 'p225').toString();
+        voiceSel.innerHTML = list.map(s => {
+          const id = String(s);
+          return `<option value="${escapeAttr(id)}"${id === cur ? ' selected' : ''}>${escapeHtml(id)}</option>`;
+        }).join('');
+        if (cur && ![...voiceSel.options].some(o => o.value === cur)) {
+          voiceSel.innerHTML = `<option value="${escapeAttr(cur)}" selected>${escapeHtml(cur)}</option>` + voiceSel.innerHTML;
+        }
+        document.getElementById('dict-tts-sent').value = String(eff.sentence_tempo ?? env.sentence_tempo ?? 0.58);
+        document.getElementById('dict-tts-word').value = String(eff.word_tempo ?? env.word_tempo ?? 0.65);
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
+    }
+
+    async function saveTtsSettings() {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      document.getElementById('dict-audio-ok').style.display = 'none';
+      const speaker = document.getElementById('dict-tts-voice').value;
+      const sentence_tempo = parseFloat(document.getElementById('dict-tts-sent').value);
+      const word_tempo = parseFloat(document.getElementById('dict-tts-word').value);
+      if (Number.isNaN(sentence_tempo) || Number.isNaN(word_tempo)) {
+        document.getElementById('dict-audio-err').textContent = 'Enter valid numbers for speeds (0.25–1.0).';
+        document.getElementById('dict-audio-err').style.display = 'block';
+        return;
+      }
+      try {
+        const res = await fetch(`${DICTATION}/tts-settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speaker, sentence_tempo, word_tempo, use_env_defaults: false })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        document.getElementById('dict-audio-ok').textContent = 'Saved. New practice audio uses these values.';
+        document.getElementById('dict-audio-ok').style.display = 'block';
+        await loadTtsSettingsPanel();
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
+    }
+
+    async function resetTtsToEnv() {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      document.getElementById('dict-audio-ok').style.display = 'none';
+      try {
+        const res = await fetch(`${DICTATION}/tts-settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ use_env_defaults: true })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        document.getElementById('dict-audio-ok').textContent = 'Reset to environment defaults.';
+        document.getElementById('dict-audio-ok').style.display = 'block';
+        await loadTtsSettingsPanel();
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
+    }
+
     async function loadDictionaryWords() {
       const root = document.getElementById('lexeme-dictionary');
       root.innerHTML = '<p class="hint">Loading…</p>';
@@ -791,7 +900,7 @@
 
     function applyHashTab() {
       const h = (location.hash || '').replace(/^#/, '');
-      const valid = ['students', 'spelling', 'dictation-progress', 'dictionary', 'assignments'];
+      const valid = ['students', 'spelling', 'dictation-progress', 'dictation-audio', 'dictionary', 'assignments'];
       if (valid.includes(h)) activateTab(h);
     }
 

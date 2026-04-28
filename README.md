@@ -17,7 +17,7 @@ that links to each app and to the shared API documentation (`/docs`).
 - **Platform admin** (students, **Assignments** by student and subject, AI word planner, dictation
   progress chart, master dictionary summaries + level/definition edit) — **`http://localhost:4500/admin/`**
   (or **`http://localhost:4500/admin`** — redirects to the trailing slash). Deep links: `#students`,
-  `#assignments`, `#spelling`, `#dictation-progress`, `#dictionary`. Served from `app/static/admin/index.html`. Requires Postgres: if the page loads
+  `#assignments`, `#spelling`, `#dictation-progress`, `#dictation-audio`, `#dictionary`. Served from `app/static/admin/index.html`. Requires Postgres: if the page loads
   but API calls fail, check **`DATABASE_URL`** and `docker compose ps` (Postgres must be healthy).
 - **Legacy URL** `/apps/dictation/ui/admin.html` redirects to **`/admin/`**.
 - **Dictation** — student UI at **http://localhost:4500/apps/dictation/ui/**. REST API under **`/apps/dictation`**;
