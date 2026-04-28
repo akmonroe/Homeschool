@@ -90,6 +90,8 @@ Use **`GET /core/students/{id}/assignments?active=true`** for rows whose window 
 
 Dictation AI commits create an **`assignments`** row with **`available_from`** set to “now” and **`due_at`** seven days later by default (adjust via **`PATCH`**).
 
+**Delete:** `DELETE /core/students/{id}/assignments/{assignment_id}` removes the assignment; **`assignment_items`** cascade; **`grades.assignment_id`** and **`skill_observations.context_assignment_id`** are set to **NULL** (grade rows remain).
+
 ### 2.6 `core.grades` — scores linked to assignments
 
 **FK:** `assignment_id` → `core.assignments.id` (nullable). One assignment may have multiple grades over time (regrades); use **`graded_at`** / metadata if you need uniqueness rules in application logic.
