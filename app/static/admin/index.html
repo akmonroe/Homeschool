@@ -15,7 +15,12 @@
     h1 { margin: 0 0 8px; font-size: 1.5rem; }
     .sub { color: #64748b; margin-bottom: 24px; font-size: 0.95rem; }
     a.nav { color: #0d9488; }
-    .tabs { display: flex; gap: 4px; margin-bottom: 0; flex-wrap: wrap; }
+    .tabs {
+      display: flex; gap: 4px; margin-bottom: 0; flex-wrap: nowrap;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+    .tabs button { flex-shrink: 0; }
     .tabs button {
       padding: 12px 14px; border: none; background: #e2e8f0; cursor: pointer;
       border-radius: 8px 8px 0 0; font-size: 0.9rem; min-height: 44px;
@@ -122,14 +127,15 @@
     <a class="nav" href="/">← Portal</a>
     · <a class="nav" href="/apps/dictation/ui/">Student dictation</a>
     · <a class="nav" href="/apps/dictation/ui/review.html">Review words</a>
+    · <a class="nav" href="/admin/#assignments">Assignments</a>
   </p>
 
   <div class="tabs">
     <button type="button" class="active" data-tab="students">Students</button>
+    <button type="button" data-tab="assignments">Assignments</button>
     <button type="button" data-tab="spelling">Spelling words (AI)</button>
     <button type="button" data-tab="dictation-progress">Dictation progress</button>
     <button type="button" data-tab="dictionary">Dictionary</button>
-    <button type="button" data-tab="assignments">Assignments</button>
   </div>
 
   <div id="students" class="panel active">
