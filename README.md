@@ -49,6 +49,7 @@ schema is always present.
   - `POST .../assignments/{id}/items` — agent-friendly steps (`item_type` +
     `payload_json`)
   - `GET/POST .../grades`, `PATCH .../grades/{grade_id}`, `GET/POST .../skills`
+  - **`POST .../dictation-session/commit`** assigns spelling words from admin; optional JSON **`due_at`** (omit for **7 days from commit**). Response echoes the effective **`due_at`**.
   - Assignments support **`available_from`**, **`due_at`**, and `GET .../assignments?active=true`; **`PATCH .../assignments/{id}`** updates schedule fields; **`DELETE .../assignments/{id}`** removes the row (items cascade; grades’ `assignment_id` is set null).
 
 Use **`metadata`** JSON on rows for extensibility; use **`rubric_json`** /

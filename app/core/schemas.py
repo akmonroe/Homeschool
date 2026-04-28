@@ -204,6 +204,10 @@ class DictationSessionDraftResponse(BaseModel):
 
 class DictationSessionCommitRequest(BaseModel):
     words: list[str]
+    due_at: datetime | None = Field(
+        None,
+        description="Core assignment deadline (timezone-aware ISO). Defaults to 7 days from commit time.",
+    )
 
 
 class DictationProfileOut(BaseModel):
@@ -218,6 +222,7 @@ class DictationSessionCommitResponse(BaseModel):
     assignment_id: uuid.UUID
     assigned_count: int
     message: str
+    due_at: datetime | None = None
 
 
 class SkillObservationOut(BaseModel):

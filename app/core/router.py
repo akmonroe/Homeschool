@@ -183,6 +183,15 @@ async def commit_dictation_word_session(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     now = _utc_now()
+    if body.due_at is not None:
+        due_at = body.due_at
+        if due_at.tzinfo is None:
+            due_at = due_at.replace(tzinfo=timezone.utc)
+    else:
+        due_at = now + timedelta(days=7)
+    if due_at < now:
+        raise HTTPException(status_code=400, detail="due_at must be in the future.")
+
     assign = Assignment(
         student_id=student_id,
         project_id=None,
@@ -190,7 +199,7 @@ async def commit_dictation_word_session(
         app_slug="dictation",
         status="assigned",
         available_from=now,
-        due_at=now + timedelta(days=7),
+        due_at=due_at,
         instructions="Words assigned from Homeschool admin for dictation practice.",
         rubric_json=None,
         metadata_={"dictation_user_id": uid, "word_count": len(words)},
@@ -215,6 +224,7 @@ async def commit_dictation_word_session(
         assignment_id=assign.id,
         assigned_count=result["assigned_count"],
         message=f"Added {result['assigned_count']} new word assignment(s) in Postgres (already-assigned words skipped).",
+        due_at=due_at,
     )
 
 

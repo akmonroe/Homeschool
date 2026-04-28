@@ -175,6 +175,9 @@
     <label for="spell-count">How many new words to suggest (AI)</label>
     <input id="spell-count" type="number" min="1" max="50" value="10" />
     <p class="hint" style="margin-top:4px">Does not depend on how many words are already due for practice—those are listed separately after you click Ask AI.</p>
+    <label for="spell-assign-due">Assignment due (for the core spelling assignment record)</label>
+    <input id="spell-assign-due" type="datetime-local" style="font-size:16px;max-width:100%" />
+    <p class="hint" style="margin-top:4px">Defaults to end of day, 7 days from now. Change before approving — sent as <code>due_at</code> on commit.</p>
     <button type="button" class="btn btn-ai" id="btn-draft" onclick="draftSpelling()">Ask AI for suggestions</button>
     <div id="draft-box" class="draft-box">
       <p id="draft-status" style="font-weight:600;margin-top:0"></p>
@@ -237,6 +240,7 @@
       if (tabId === 'dictionary') loadDictionaryWords();
       if (tabId === 'dictation-progress') loadDictationProfilesForChart({});
       if (tabId === 'assignments') loadAssignmentsPanel();
+      if (tabId === 'spelling') ensureSpellAssignDueDefault();
     }
 
     document.querySelectorAll('.tabs button').forEach(btn => {
@@ -382,10 +386,17 @@
       const raw = document.getElementById('draft-words').value;
       const words = raw.split(',').map(w => w.trim()).filter(Boolean);
       if (!sid || !words.length) { alert('Select a student and enter words'); return; }
+      ensureSpellAssignDueDefault();
+      const dueEl = document.getElementById('spell-assign-due');
+      let due_at = null;
+      if (dueEl && dueEl.value) {
+        const dt = new Date(dueEl.value);
+        if (!Number.isNaN(dt.getTime())) due_at = dt.toISOString();
+      }
       const res = await fetch(`${CORE}/students/${sid}/dictation-session/commit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words })
+        body: JSON.stringify({ words, due_at })
       });
       if (!res.ok) {
         document.getElementById('spell-err').textContent = await res.text();
@@ -393,8 +404,9 @@
         return;
       }
       const data = await res.json();
+      const dueLine = data.due_at ? formatLocalDateTime(data.due_at) : '';
       document.getElementById('spell-ok').textContent =
-        `${data.message} Core assignment ${data.assignment_id}.`;
+        `${data.message} Core assignment ${data.assignment_id}.${dueLine ? ' Due: ' + dueLine + '.' : ''}`;
       document.getElementById('spell-ok').style.display = 'block';
       document.getElementById('draft-box').style.display = 'none';
     }
@@ -570,6 +582,16 @@
       const h = pad(d.getHours());
       const min = pad(d.getMinutes());
       return `${y}-${m}-${day}T${h}:${min}`;
+    }
+
+    function ensureSpellAssignDueDefault() {
+      const el = document.getElementById('spell-assign-due');
+      if (!el || el.value) return;
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      d.setHours(23, 59, 0, 0);
+      const pad = (n) => String(n).padStart(2, '0');
+      el.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
     function slugLabel(slug) {
