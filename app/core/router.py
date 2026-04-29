@@ -15,6 +15,7 @@ from app.core.database import core_db_enabled
 from app.core.deps import get_core_pg_session
 from app.core.models import Assignment, AssignmentItem, Grade, Project, SkillObservation, Student
 from app.apps.dictation import session_words as dictation_session
+from app.apps.dictation import dictation_lexemes as dictation_lexemes
 from app.core.schemas import (
     DictationProfileOut,
     AssignmentCreate,
@@ -155,6 +156,7 @@ async def draft_dictation_word_session(
         suggested_words=data["suggested_words"],
         difficulty=data["difficulty"],
         dictation_user_id=uid,
+        pool_size=int(data.get("pool_size", 0)),
     )
 
 
@@ -174,6 +176,12 @@ async def commit_dictation_word_session(
     words = [w.strip() for w in body.words if w and str(w).strip()]
     if not words:
         raise HTTPException(status_code=400, detail="No words to assign")
+    missing = await dictation_lexemes.list_missing_canonical(session, words)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"These words are not in the master dictionary (add them in Dictionary or import first): {', '.join(missing)}",
+        )
     try:
         uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
         result = await dictation_session.commit_daily_session_dictation(uid, words)

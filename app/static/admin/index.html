@@ -170,7 +170,7 @@
 
   <div id="spelling" class="panel">
     <h2 style="margin-top:0;font-size:1.1rem">AI word suggestions → dictation</h2>
-    <p class="hint">Uses Ollama. Words are saved to dictation and recorded as a core assignment.</p>
+    <p class="hint">Ollama picks <strong>only from words already in the master dictionary</strong> (Dictionary tab / import). Add words to Postgres first; the AI chooses among words this student is not already assigned. Words must stay in the dictionary on approve—unknown words are rejected.</p>
     <label for="spell-student">Student</label>
     <select id="spell-student"><option value="">Loading…</option></select>
     <label for="spell-count">How many new words to suggest (AI)</label>
@@ -203,8 +203,12 @@
     <label for="dict-tts-word">Word speed</label>
     <input id="dict-tts-word" type="number" min="0.25" max="1" step="0.01" value="0.65" style="max-width:160px" />
     <p class="hint" style="margin-top:0">Often slightly faster than the sentence.</p>
-    <p id="dict-tts-env-hint" class="hint" style="margin-top:8px">Env defaults: —</p>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px">
+    <p class="hint" id="dict-tts-audio-hint" style="display:none">Preview uses a fixed short phrase; it does not change a student&rsquo;s in-progress word.</p>
+    <audio id="dict-tts-audio" controls preload="none" style="width:100%;max-width:100%;margin-top:12px"></audio>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px">
+      <button type="button" class="btn btn-secondary" onclick="playTtsSample('sentence')">▶ Play sentence sample</button>
+      <button type="button" class="btn btn-secondary" onclick="playTtsSample('word')">▶ Play word sample</button>
+    </div>
       <button type="button" class="btn btn-primary" onclick="saveTtsSettings()">Save settings</button>
       <button type="button" class="btn btn-secondary" onclick="loadTtsSettingsPanel()">Reload</button>
       <button type="button" class="btn btn-secondary" onclick="resetTtsToEnv()">Use Docker env only</button>
@@ -391,9 +395,15 @@
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         document.getElementById('draft-box').style.display = 'block';
-        document.getElementById('draft-status').textContent =
-          `${data.due_count} word(s) already due for practice (backlog). Suggested ${data.suggested_words.length} new word(s) to add (skill ${data.difficulty}). Edit the list, then approve to assign.`;
-        document.getElementById('draft-words').value = data.suggested_words.join(', ');
+        const poolN = (typeof data.pool_size === 'number') ? data.pool_size : '—';
+        if (!data.suggested_words || !data.suggested_words.length) {
+          document.getElementById('draft-status').textContent =
+            `Unassigned words available in the dictionary: ${poolN}. No suggestions (add more words to the dictionary or check that the student is not already assigned to every word).`;
+        } else {
+          document.getElementById('draft-status').textContent =
+            `Pool: ${poolN} words in the dictionary not yet assigned to this student. ${data.due_count} word(s) already due (backlog). Suggested ${data.suggested_words.length} word(s) from the dictionary (skill ${data.difficulty}). Edit, then approve.`;
+        }
+        document.getElementById('draft-words').value = (data.suggested_words || []).join(', ');
       } catch (e) {
         document.getElementById('spell-err').textContent = String(e.message || e);
         document.getElementById('spell-err').style.display = 'block';
@@ -556,6 +566,30 @@
           <button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'))">Save</button>
         </div>
       </article>`;
+    }
+
+    async function playTtsSample(sample) {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      const voice = document.getElementById('dict-tts-voice').value;
+      const sent = parseFloat(document.getElementById('dict-tts-sent').value);
+      const word = parseFloat(document.getElementById('dict-tts-word').value);
+      if (!voice) { document.getElementById('dict-audio-err').textContent = 'Select a voice first.'; document.getElementById('dict-audio-err').style.display = 'block'; return; }
+      try {
+        const res = await fetch(`${DICTATION}/tts-preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speaker: voice, sentence_tempo: sent, word_tempo: word, sample: sample || 'sentence' })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const j = await res.json();
+        const a = document.getElementById('dict-tts-audio');
+        document.getElementById('dict-tts-audio-hint').style.display = 'block';
+        a.src = `${DICTATION}/audio/tts-preview?t=${Date.now()}`;
+        a.play().catch(() => {});
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
     }
 
     async function loadTtsSettingsPanel() {

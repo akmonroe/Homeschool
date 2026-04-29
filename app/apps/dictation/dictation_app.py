@@ -34,6 +34,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 DATA_DIR = Path(os.getenv("DICTATION_DATA_DIR", "/app/data"))
 CURRENT_SENTENCE_AUDIO = DATA_DIR / "current_dictation_sentence.wav"
 CURRENT_WORD_AUDIO = DATA_DIR / "current_dictation_word.wav"
+PREVIEW_TTS_AUDIO = DATA_DIR / "dictation_tts_preview.wav"
 # Legacy single-file path (unused); kept name for any external references
 CURRENT_AUDIO = CURRENT_SENTENCE_AUDIO
 
@@ -82,6 +83,18 @@ class TtsSettingsPut(BaseModel):
     use_env_defaults: bool = Field(
         False,
         description="If true, clear overrides; env vars apply. Other fields are ignored for overrides.",
+    )
+
+
+class TtsPreviewRequest(BaseModel):
+    """Preview TTS for admin without changing saved practice audio."""
+
+    speaker: str = Field(..., min_length=1, description="VCTK speaker id, e.g. p225")
+    sentence_tempo: float = Field(0.58, ge=0.25, le=1.0)
+    word_tempo: float = Field(0.65, ge=0.25, le=1.0)
+    sample: str = Field(
+        "sentence",
+        description="Try 'sentence' (short line) or 'word' (single word) to match student UI.",
     )
 
 
@@ -166,6 +179,58 @@ def put_tts_settings(body: TtsSettingsPut) -> dict:
 def get_tts_voices() -> dict[str, list[str]]:
     """Speaker IDs for the loaded VCTK VITS model (e.g. p225)."""
     return {"speakers": _list_speaker_ids()}
+
+
+def _synthesize_tts_preview_wav(
+    text: str,
+    *,
+    speaker: str,
+    tempo: float,
+    out_path: Path,
+) -> None:
+    if tts_model is None:
+        raise HTTPException(status_code=503, detail="TTS model is not loaded yet.")
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as raw_f:
+        raw = Path(raw_f.name)
+    try:
+        tts_model.tts_to_file(
+            text=text,
+            speaker=speaker.strip(),
+            file_path=str(raw),
+            split_sentences=False,
+        )
+        try:
+            wav_through_tempo(raw, out_path, tempo)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            print(f"ffmpeg tempo (preview) failed, using raw: {exc}")
+            shutil.copyfile(raw, out_path)
+    finally:
+        raw.unlink(missing_ok=True)
+
+
+PREVIEW_TEXT_SENTENCE = "This is a sample of dictation playback in your home school."
+PREVIEW_TEXT_WORD = "spelling"
+
+
+@app.post("/tts-preview", tags=["AI Engine"])
+def post_tts_preview(body: TtsPreviewRequest) -> dict:
+    """Render a short WAV to preview voice and tempo; does not affect the student's last practice audio."""
+    kind = (body.sample or "sentence").strip().lower()
+    if kind in ("word", "w", "1"):
+        text, tempo = PREVIEW_TEXT_WORD, body.word_tempo
+    else:
+        text, tempo = PREVIEW_TEXT_SENTENCE, body.sentence_tempo
+    _synthesize_tts_preview_wav(text, speaker=body.speaker, tempo=tempo, out_path=PREVIEW_TTS_AUDIO)
+    return {"ok": True, "audio_url": "/apps/dictation/audio/tts-preview", "sample": kind, "text": text}
+
+
+@app.get("/audio/tts-preview", tags=["AI Engine"])
+def get_tts_preview_audio() -> FileResponse:
+    if not PREVIEW_TTS_AUDIO.is_file():
+        raise HTTPException(
+            status_code=404, detail="No preview yet — POST /tts-preview in the admin voice panel first."
+        )
+    return FileResponse(str(PREVIEW_TTS_AUDIO), media_type="audio/wav")
 
 
 def setup_dictation() -> None:

@@ -34,8 +34,13 @@ A **single** FastAPI application (`app/main.py`) owns:
 
 ### AI spelling draft (`POST /core/students/{id}/dictation-session/draft`)
 
-- **`target_daily_words`** in the request body is the **count of new words to ask the model for** (1–50), not “top up the queue to a total.”
+- **`target_daily_words`** in the request body is the **count of new words to ask for** (1–50), not “top up the queue to a total.”
+- Suggestions are **only from `core.lexemes`** the student is **not** already assigned (unassigned pool). Ollama may pick from a prompt list if the pool is large; otherwise the server picks by weighted **difficulty** near the student’s skill. Response includes **`pool_size`** (unassigned count).
 - Response **`due_count`** is how many words are **already in the practice backlog** (`next_review_date <= today`); it is **informational** and does not reduce the batch size (older code incorrectly used `target - due_count` and could request zero new words when backlog was large).
+
+### AI spelling commit (`POST /core/students/{id}/dictation-session/commit`)
+
+- Every word must **already exist** in `core.lexemes` (import / Dictionary). The server no longer creates new dictionary rows on commit; invalid words return **400** with a list of missing surface forms.
 
 ### Dictation practice audio (`POST /apps/dictation/generate`)
 
@@ -45,7 +50,7 @@ A **single** FastAPI application (`app/main.py`) owns:
 | Ollama | Runs only when there is no cache for this word or `regenerate` is **true**; request uses a **system** message (single-sentence dictation) + lower **temperature**; one retry with `temperature: 0.25` if the first output cannot be cleaned. The response is **cleaned** (first line, strip “Sure!…”, one sentence) and **rejected** if the target word does not appear. |
 | Response | `sentence`, `audio_url`, `word_audio_url`, `revision` (int), `from_cache` (bool) |
 | On-disk WAVs | Fixed paths under `DICTATION_DATA_DIR` (default `/app/data`): sentence + word-only clips; volume **`dictation-data`** |
-| TTS | **Env** (`DICTATION_TTS_SPEAKER`, `DICTATION_TTS_PLAYBACK_TEMPO`, `DICTATION_TTS_WORD_PLAYBACK_TEMPO`) or **in-memory overrides** from admin: `GET/PUT /apps/dictation/tts-settings`, list speakers `GET /apps/dictation/tts-voices` (VCTK ids). Overrides last until container restart. |
+| TTS | **Env** (`DICTATION_TTS_SPEAKER`, `DICTATION_TTS_PLAYBACK_TEMPO`, `DICTATION_TTS_WORD_PLAYBACK_TEMPO`) or **in-memory overrides** from admin: `GET/PUT /apps/dictation/tts-settings`, list speakers `GET /apps/dictation/tts-voices` (VCTK ids). **Preview** without touching practice audio: `POST /apps/dictation/tts-preview` then `GET /apps/dictation/audio/tts-preview`. Overrides last until container restart. |
 
 Implementation: `app/apps/dictation/dictation_app.py` (cache + routes + Ollama), tempo in `app/apps/dictation/dictation_tts.py`, runtime overrides in `app/apps/dictation/dictation_tts_settings.py`, Ollama URL/model in `ollama_settings.py`.
 

@@ -200,6 +200,10 @@ class DictationSessionDraftResponse(BaseModel):
     suggested_words: list[str]
     difficulty: int
     dictation_user_id: int
+    pool_size: int = Field(
+        0,
+        description="Count of dictionary words not yet assigned to this student (candidates for suggestions).",
+    )
 
 
 class DictationSessionCommitRequest(BaseModel):
