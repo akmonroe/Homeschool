@@ -203,12 +203,12 @@
     <label for="dict-tts-word">Word speed</label>
     <input id="dict-tts-word" type="number" min="0.25" max="1" step="0.01" value="0.65" style="max-width:160px" />
     <p class="hint" style="margin-top:0">Often slightly faster than the sentence.</p>
+    <p class="hint" id="dict-tts-env-hint" style="margin-top:8px">Env defaults: —</p>
     <p class="hint" id="dict-tts-audio-hint" style="display:none">Preview uses a fixed short phrase; it does not change a student&rsquo;s in-progress word.</p>
     <audio id="dict-tts-audio" controls preload="none" style="width:100%;max-width:100%;margin-top:12px"></audio>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px">
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px">
       <button type="button" class="btn btn-secondary" onclick="playTtsSample('sentence')">▶ Play sentence sample</button>
       <button type="button" class="btn btn-secondary" onclick="playTtsSample('word')">▶ Play word sample</button>
-    </div>
       <button type="button" class="btn btn-primary" onclick="saveTtsSettings()">Save settings</button>
       <button type="button" class="btn btn-secondary" onclick="loadTtsSettingsPanel()">Reload</button>
       <button type="button" class="btn btn-secondary" onclick="resetTtsToEnv()">Use Docker env only</button>
@@ -597,6 +597,7 @@
       document.getElementById('dict-audio-ok').style.display = 'none';
       const envHint = document.getElementById('dict-tts-env-hint');
       const voiceSel = document.getElementById('dict-tts-voice');
+      if (!voiceSel) return;
       try {
         const [sRes, tRes] = await Promise.all([
           fetch(`${DICTATION}/tts-voices`),
@@ -612,9 +613,11 @@
         if (env.speaker != null) envParts.push('voice ' + env.speaker);
         if (env.sentence_tempo != null) envParts.push('sentence ' + env.sentence_tempo);
         if (env.word_tempo != null) envParts.push('word ' + env.word_tempo);
-        envHint.textContent = envParts.length
-          ? 'Env defaults: ' + envParts.join(', ') + ' (from DICTATION_TTS_* in Docker / host).'
-          : 'Env defaults: (not reported — check container env).';
+        if (envHint) {
+          envHint.textContent = envParts.length
+            ? 'Env defaults: ' + envParts.join(', ') + ' (from DICTATION_TTS_* in Docker / host).'
+            : 'Env defaults: (not reported — check container env).';
+        }
         const list = (speakers && speakers.length) ? speakers : ['p225'];
         const cur = (eff.speaker || env.speaker || 'p225').toString();
         voiceSel.innerHTML = list.map(s => {
