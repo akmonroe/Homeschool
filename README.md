@@ -50,6 +50,7 @@ schema is always present.
     `payload_json`)
   - `GET/POST .../grades`, `PATCH .../grades/{grade_id}`, `GET/POST .../skills`
   - **`POST .../dictation-session/commit`** assigns spelling words from admin; optional JSON **`due_at`** (omit for **7 days from commit**). Response echoes the effective **`due_at`**.
+  - **`POST .../dictation-session/sync-assignment`** (optional **`due_at`**, optional **`title`**) creates or updates a single **`dictation`** suite assignment and **`items`**, listing **all** words currently in that student’s **`core.dictation_assignments`** practice queue. Use this when the dictation app shows words but **Assignments** is empty (or out of date).
   - Assignments support **`available_from`**, **`due_at`**, and `GET .../assignments?active=true`; **`PATCH .../assignments/{id}`** updates schedule fields; **`DELETE .../assignments/{id}`** removes the row (items cascade; grades’ `assignment_id` is set null).
 
 Use **`metadata`** JSON on rows for extensibility; use **`rubric_json`** /

@@ -120,6 +120,7 @@ class AssignmentOut(BaseModel):
         description="Tall items (e.g. spelling_word rows with payload word).",
     )
 
+
 class GradeCreate(BaseModel):
     assignment_id: uuid.UUID | None = None
     project_id: uuid.UUID | None = None
@@ -228,6 +229,26 @@ class DictationSessionCommitResponse(BaseModel):
     dictation_user_id: int
     assignment_id: uuid.UUID
     assigned_count: int
+    message: str
+    due_at: datetime | None = None
+
+
+class DictationQueueSyncRequest(BaseModel):
+    due_at: datetime | None = Field(
+        None,
+        description="Due date for the suite assignment (defaults to 7 days from now).",
+    )
+    title: str | None = Field(
+        None, max_length=500, description="Override assignment title; default: Spelling words (dictation)."
+    )
+
+
+class DictationQueueSyncResponse(BaseModel):
+    """Mirrors the dictation practice queue (Postgres) into a suite `core.assignment` + items."""
+
+    dictation_user_id: int
+    assignment_id: uuid.UUID
+    item_count: int
     message: str
     due_at: datetime | None = None
 

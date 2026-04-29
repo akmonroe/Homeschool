@@ -364,6 +364,20 @@ async def list_missing_canonical(
     return missing
 
 
+async def list_all_queue_words(
+    session: AsyncSession, dictation_user_id: int
+) -> list[str]:
+    """All canonical words in the dictation practice queue (core.dictation_assignments), sorted."""
+    stmt = (
+        select(Lexeme.canonical_word)
+        .join(DictationAssignment, DictationAssignment.lexeme_id == Lexeme.id)
+        .where(DictationAssignment.dictation_user_id == dictation_user_id)
+        .order_by(Lexeme.canonical_word.asc())
+    )
+    rows = await session.scalars(stmt)
+    return [str(w).lower().strip() for w in rows]
+
+
 async def list_unassigned_lexeme_rows(
     session: AsyncSession,
     dictation_user_id: int,

@@ -42,6 +42,13 @@ A **single** FastAPI application (`app/main.py`) owns:
 
 - Every word must **already exist** in `core.lexemes` (import / Dictionary). The server no longer creates new dictionary rows on commit; invalid words return **400** with a list of missing surface forms.
 
+### Dictation queue vs suite assignment (two related tables)
+
+- The **dictation app**’s “words due” count and practice flow use **`core.dictation_assignments`** (the per-student **practice queue** joined to `core.lexemes`).  
+- The **admin Assignments** tab lists **`core.assignments`** and **`core.assignment_items`**, which is the **suite** assignment record (used for due dates, listing words in the UI, and grades).  
+- **Normal path:** A successful `dictation-session/commit` writes **both** the queue rows and one suite `Assignment` (plus `items`).  
+- **If you see students with words in dictation but nothing under Assignments:** the queue and suite layer can **drift** (e.g. data from before suite assignments, partial failures, or only queue writes). **Repair:** `POST /core/students/{id}/dictation-session/sync-assignment` — creates or **replaces** one `dictation` **suite** assignment `items` from the **entire** current practice queue, default **due** 7 days ahead (or pass **`due_at`** in JSON). The platform admin’s Assignments tab has a **“Sync dictation → assignment”** button that calls this.
+
 ### Dictation practice audio (`POST /apps/dictation/generate`)
 
 | Field / behavior | Notes |
@@ -75,6 +82,7 @@ Details: [DATABASE.md](./DATABASE.md).
 
 1. **Students** — `POST/PATCH /core/students`; syncs dictation SQLite profile.
 2. **Spelling words (AI)** — `POST /core/students/{id}/dictation-session/draft|commit`.
+2b. **Assignments (suite)** — `GET /core/students/{id}/assignments`; if dictation shows words but Assignments is empty, **`POST /core/students/{id}/dictation-session/sync-assignment`** (or **“Sync dictation → assignment”** in the admin UI) mirrors the practice queue to `core.assignments` + items.
 3. **Dictation progress** — `GET /apps/dictation/users`, `GET .../users/{id}/progress` (Chart.js).
 4. **Dictation audio** — TTS voice and playback speed: `GET/PUT /apps/dictation/tts-settings` (in-memory overrides; reset to env in UI).
 5. **Dictionary** — `GET/PUT /apps/dictation/words` (UI shows full lexeme summaries; optional script/API: `POST .../words/bulk-upload`).

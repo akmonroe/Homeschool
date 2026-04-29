@@ -229,7 +229,7 @@
 
   <div id="assignments" class="panel panel-wide">
     <h2 style="margin-top:0;font-size:1.1rem">Assignments</h2>
-    <p class="hint">Suite-level work from Postgres (<code>core.assignments</code>). <strong>Subject</strong> is the app slug (e.g. <code>dictation</code>). Dates use your device timezone.</p>
+    <p class="hint">Suite-level work from Postgres (<code>core.assignments</code>). <strong>Subject</strong> is the app slug (e.g. <code>dictation</code>). The <strong>dictation student app</strong> uses a separate practice queue; if the app shows words but this list is empty, use <strong>Sync dictation → assignment</strong> for that student. Dates use your device timezone.</p>
     <div class="assign-toolbar">
       <div class="field-grow">
         <label for="assign-student">Student</label>
@@ -243,6 +243,7 @@
         </select>
       </div>
       <button type="button" class="btn btn-primary btn-refresh" onclick="loadAssignmentsPanel()">Refresh list</button>
+      <button type="button" class="btn btn-secondary btn-refresh" id="btn-sync-dictation-assign" title="Create or update a suite assignment from the dictation word queue" onclick="syncDictationToAssignment()">Sync dictation → assignment</button>
     </div>
     <p id="assign-err" class="err" style="display:none"></p>
     <div id="assign-list"></div>
@@ -909,6 +910,30 @@
           </div>
         </div>
       </details>`;
+    }
+
+    async function syncDictationToAssignment() {
+      const sid = document.getElementById('assign-student').value;
+      if (!sid) { alert('Select a student first.'); return; }
+      const btn = document.getElementById('btn-sync-dictation-assign');
+      if (btn) { btn.disabled = true; }
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/dictation-session/sync-assignment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || res.status);
+        }
+        const data = await res.json();
+        alert(data.message + (data.due_at ? '\nDue: ' + formatLocalDateTime(data.due_at) : ''));
+        await loadAssignmentsPanel();
+      } catch (e) {
+        alert(String(e.message || e));
+      }
+      if (btn) { btn.disabled = false; }
     }
 
     async function saveAssignmentFromBtn(btn) {

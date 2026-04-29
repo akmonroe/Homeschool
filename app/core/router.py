@@ -27,6 +27,8 @@ from app.core.schemas import (
     DictationSessionCommitResponse,
     DictationSessionDraftRequest,
     DictationSessionDraftResponse,
+    DictationQueueSyncRequest,
+    DictationQueueSyncResponse,
     GradeCreate,
     GradeOut,
     GradeUpdate,
@@ -232,6 +234,126 @@ async def commit_dictation_word_session(
         assignment_id=assign.id,
         assigned_count=result["assigned_count"],
         message=f"Added {result['assigned_count']} new word assignment(s) in Postgres (already-assigned words skipped).",
+        due_at=due_at,
+    )
+
+
+@router.post(
+    "/students/{student_id}/dictation-session/sync-assignment",
+    response_model=DictationQueueSyncResponse,
+)
+async def sync_dictation_queue_to_suite_assignment(
+    session: SessionDep,
+    student_id: uuid.UUID,
+    body: DictationQueueSyncRequest,
+):
+    """Create or replace the suite `core.assignments` row (and items) from the dictation *practice queue*.
+
+    The student app counts words in `core.dictation_assignments`; the Assignments admin lists
+    `core.assignments`. If those drift (e.g. data added before suite assignments existed), call
+    this to mirror the full current queue into one assignment the admin can see and edit.
+    """
+    row = await _require_student(session, student_id)
+    meta = dict(row.metadata_ or {})
+    level = int(meta.get("dictation_skill_level", 5))
+    level = max(1, min(10, level))
+    try:
+        uid = dictation_session.ensure_dictation_user(str(row.id), row.display_name, level)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    words = await dictation_lexemes.list_all_queue_words(session, uid)
+    if not words:
+        raise HTTPException(
+            status_code=400,
+            detail="No words in the dictation practice queue for this student. Nothing to sync to Assignments.",
+        )
+
+    now = _utc_now()
+    if body.due_at is not None:
+        due_at = body.due_at
+        if due_at.tzinfo is None:
+            due_at = due_at.replace(tzinfo=timezone.utc)
+    else:
+        due_at = now + timedelta(days=7)
+    if due_at < now:
+        raise HTTPException(status_code=400, detail="due_at must be in the future.")
+
+    title = (body.title or "").strip() or "Spelling words (dictation)"
+
+    result = await session.scalars(
+        select(Assignment)
+        .where(Assignment.student_id == student_id, Assignment.app_slug == "dictation")
+        .order_by(Assignment.created_at.desc())
+    )
+    assign_row: Assignment | None = None
+    for a in list(result):
+        m = a.metadata_ or {}
+        if m.get("dictation_user_id") == uid and m.get("source") == "dictation_queue_sync":
+            assign_row = a
+            break
+    if assign_row is None:
+        for a in list(
+            await session.scalars(
+                select(Assignment)
+                .where(Assignment.student_id == student_id, Assignment.app_slug == "dictation", Assignment.title == title)
+                .order_by(Assignment.created_at.desc())
+            )
+        ):
+            m = a.metadata_ or {}
+            if m.get("dictation_user_id") == uid:
+                assign_row = a
+                break
+
+    meta_payload = {
+        "dictation_user_id": uid,
+        "source": "dictation_queue_sync",
+        "word_count": len(words),
+    }
+
+    if assign_row is None:
+        assign_row = Assignment(
+            student_id=student_id,
+            project_id=None,
+            title=title,
+            app_slug="dictation",
+            status="assigned",
+            available_from=now,
+            due_at=due_at,
+            instructions="Spelling / dictation practice (synced from the dictation word queue in Postgres).",
+            rubric_json=None,
+            metadata_=meta_payload,
+        )
+        session.add(assign_row)
+        await session.flush()
+    else:
+        assign_row.title = title
+        assign_row.status = "assigned"
+        assign_row.available_from = now
+        assign_row.due_at = due_at
+        assign_row.instructions = (
+            "Spelling / dictation practice (synced from the dictation word queue in Postgres)."
+        )
+        assign_row.metadata_ = {**(assign_row.metadata_ or {}), **meta_payload}
+        await session.execute(delete(AssignmentItem).where(AssignmentItem.assignment_id == assign_row.id))
+
+    for i, w in enumerate(words):
+        session.add(
+            AssignmentItem(
+                assignment_id=assign_row.id,
+                sequence=i,
+                item_type="spelling_word",
+                payload_json={"word": w},
+            )
+        )
+    await session.flush()
+    await session.refresh(assign_row, attribute_names=["items"])
+
+    return DictationQueueSyncResponse(
+        dictation_user_id=uid,
+        assignment_id=assign_row.id,
+        item_count=len(words),
+        message=f"Suite assignment now lists {len(words)} word(s) from the dictation practice queue.",
         due_at=due_at,
     )
 
