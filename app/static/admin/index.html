@@ -260,19 +260,53 @@
     let _studentNames = {};
     let _dictationChart = null;
 
-    function activateTab(tabId) {
-      document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
-      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === tabId));
-      if (tabId === 'dictionary') loadDictionaryWords();
-      if (tabId === 'dictation-progress') loadDictationProfilesForChart({});
-      if (tabId === 'assignments') loadAssignmentsPanel();
-      if (tabId === 'spelling') ensureSpellAssignDueDefault();
-      if (tabId === 'dictation-audio') loadTtsSettingsPanel();
+    /** Tab ids in DOM order; single source of truth for hash + validation. */
+    const ADMIN_TAB_IDS = [
+      'students', 'assignments', 'spelling', 'dictation-progress', 'dictation-audio', 'dictionary'
+    ];
+
+    function getTabFromHash() {
+      const h = (location.hash || '').replace(/^#/, '');
+      return ADMIN_TAB_IDS.includes(h) ? h : 'students';
     }
 
-    document.querySelectorAll('.tabs button').forEach(btn => {
-      btn.addEventListener('click', () => activateTab(btn.dataset.tab));
-    });
+    function activateTab(tabId) {
+      const id = ADMIN_TAB_IDS.includes(tabId) ? tabId : 'students';
+      document.querySelectorAll('.tabs button').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-tab') === id);
+      });
+      document.querySelectorAll('.panel').forEach(p => {
+        p.classList.toggle('active', p.id === id);
+      });
+      // Optional async loaders — don't let one failure break tab switching
+      (async function loadTabData() {
+        try {
+          if (id === 'dictionary') await loadDictionaryWords();
+          if (id === 'dictation-progress') await loadDictationProfilesForChart({});
+          if (id === 'assignments') await loadAssignmentsPanel();
+          if (id === 'spelling') ensureSpellAssignDueDefault();
+          if (id === 'dictation-audio') await loadTtsSettingsPanel();
+        } catch (e) {
+          console.error('Tab data load error:', e);
+        }
+      })();
+    }
+
+    const tabsBar = document.querySelector('.tabs');
+    if (tabsBar) {
+      tabsBar.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button[data-tab]');
+        if (!btn) return;
+        const tid = btn.getAttribute('data-tab');
+        if (!tid || !ADMIN_TAB_IDS.includes(tid)) return;
+        ev.preventDefault();
+        if (location.hash === '#' + tid) {
+          activateTab(tid);
+        } else {
+          location.hash = tid;
+        }
+      });
+    }
 
     function escapeHtml(t) {
       const d = document.createElement('div');
@@ -555,13 +589,6 @@
       const etBlock = et
         ? `<div class="lex-section"><strong>Etymology &amp; word history</strong><pre>${escapeHtml(et)}</pre></div>`
         : '<div class="lex-section"><strong>Etymology &amp; word history</strong><p style="margin:0;color:#94a3b8;font-size:0.9rem">None stored.</p></div>';
-      return `<article class="lex-card">
-        <h3>${title}</h3>
-        <div class="lex-meta">Canonical: <code>${canon}</code>${display ? ' · Display: <code>' + display + '</code>' : ''} · Locale: <code>${locale}</code><br>Lexeme id: <code>${lid}</code> · Difficulty: <strong>${escapeHtml(String(lvl))}</strong></div>
-        <div class="lex-section"><strong>Definition</strong><pre>${escapeHtml(def || '(empty)')}</pre></div>
-        ${prBlock}
-        ${etBlock}
-        <div class="lex-section"><strong>Spelling tips</strong>${tricksHtml}</div>
       const disp = (w.display_word == null) ? '' : String(w.display_word);
       return `<article class="lex-card">
         <h3>${title}</h3>
@@ -957,7 +984,7 @@
     }
 
     document.getElementById('assign-subject').addEventListener('change', () => {
-      if (!_lastAssignmentsRaw.length) return;
+      if (!Array.isArray(_lastAssignmentsRaw) || !_lastAssignmentsRaw.length) return;
       const sid = document.getElementById('assign-student').value;
       if (!sid) return;
       const filtered = filterAssignmentsForDisplay(_lastAssignmentsRaw);
@@ -975,9 +1002,8 @@
     });
 
     function applyHashTab() {
-      const h = (location.hash || '').replace(/^#/, '');
-      const valid = ['students', 'spelling', 'dictation-progress', 'dictation-audio', 'dictionary', 'assignments'];
-      if (valid.includes(h)) activateTab(h);
+      const h = getTabFromHash();
+      activateTab(h);
     }
 
     window.addEventListener('hashchange', applyHashTab);
