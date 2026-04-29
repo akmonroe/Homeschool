@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.apps.dictation import dictation_lexemes as lex
@@ -16,8 +16,13 @@ SessionDep = Annotated[AsyncSession, Depends(get_core_pg_session)]
 
 
 class WordEdit(BaseModel):
+    display_word: str | None = None
     difficulty_level: int
     definition: str
+    extensions: dict | None = Field(
+        default=None,
+        description="If present, key-value pairs are merged into core.lexemes.extensions (JSONB).",
+    )
 
 
 @router.get("/words/review", tags=["Dictionary"])
@@ -109,8 +114,10 @@ async def edit_word(word_id: str, word_data: WordEdit, session: SessionDep):
         await lex.update_lexeme_fields(
             session,
             lid,
+            display_word=word_data.display_word,
             difficulty_level=word_data.difficulty_level,
             definition=word_data.definition,
+            extensions=word_data.extensions,
         )
         return {"status": "success", "message": "Word updated successfully."}
     except Exception as e:

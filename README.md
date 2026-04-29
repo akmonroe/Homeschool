@@ -66,9 +66,18 @@ alembic upgrade head
 
 ### Words and dictionary
 
-- **Operator UI:** `/admin/` → **Dictionary** tab — full per-word summary (definition, pronunciation, etymology, spelling tips, full `extensions` JSON) plus inline edit of level and definition (Postgres `core.lexemes`). Bulk CSV remains available via **`POST /apps/dictation/words/bulk-upload`** for scripts if needed.
+- **Operator UI:** `/admin/` → **Dictionary** tab — per-word summary and **editable** display form, definition, level, and **full `extensions` JSON** (merged on save into Postgres `core.lexemes`). Bulk CSV remains available via **`POST /apps/dictation/words/bulk-upload`** for scripts if needed.
 - **Browse / verify:** `/apps/dictation/ui/review.html` — paginated list including `extensions` (pronunciation, etymology, spelling tips) when populated.
-- **Rich import (CLI):** `scripts/import_school_spelling_words.py` — merges API + Wiktionary data into `extensions`. Example with Compose:
+- **Oxford 3000/5000–style import (CLI):** `scripts/import_oxford_5000.py` reads the open [nalgeon/words `oxford-5k.csv`](https://github.com/nalgeon/words/blob/main/data/oxford-5k.csv) (CEFR, part of speech, Oxford Learner's links) and enriches each headword with **api.dictionaryapi.dev** + **Wiktionary** (same pipeline as the school list). **Rebuild the app image** after pulling new scripts, then run (full import is slow and network-heavy; use `--limit` to test):
+
+```bash
+docker compose build app && docker compose up -d
+docker compose exec app sh -c \
+  'export DATABASE_URL_SYNC=postgresql://homeschool:homeschool@postgres:5432/homeschool && \
+   python scripts/import_oxford_5000.py --limit 50'
+```
+
+- **Other rich import (CLI):** `scripts/import_school_spelling_words.py` — merges API + Wiktionary data into `extensions`. Example with Compose:
 
 ```bash
 docker compose exec app sh -c \

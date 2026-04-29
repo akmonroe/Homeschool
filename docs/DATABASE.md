@@ -174,6 +174,16 @@ docker compose exec app sh -c \
 
 Bundled CSVs are **study-style** vocabulary lists, not a substitute for official Scripps materials.
 
+### 6.1 Oxford 3000/5000–style list (open CSV + enrichment)
+
+`scripts/import_oxford_5000.py` loads words from the community dataset [nalgeon/words `data/oxford-5k.csv`](https://github.com/nalgeon/words/blob/main/data/oxford-5k.csv) (CEFR band, part of speech, links to **Oxford Learner's Dictionaries** definition and audio URLs). **This is not an official OUP machine export;** align list membership with your own Oxford materials if required. The script merges duplicate headwords, stores CEFR and OALD links under `extensions`, and runs the same **dictionaryapi.dev** + **Wiktionary** enrichment as the school import. Full run can take **many hours** (rate-limited sleeps); use `--limit` for testing.
+
+```bash
+docker compose exec app sh -c \
+  'export DATABASE_URL_SYNC=postgresql://homeschool:homeschool@postgres:5432/homeschool && \
+   python scripts/import_oxford_5000.py --limit 100'
+```
+
 ---
 
 ## 7. Maintenance

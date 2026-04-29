@@ -123,6 +123,7 @@ async def update_lexeme_fields(
     session: AsyncSession,
     lexeme_id: uuid.UUID,
     *,
+    display_word: str | None = None,
     difficulty_level: int | None = None,
     definition: str | None = None,
     extensions: dict[str, Any] | None = None,
@@ -130,6 +131,9 @@ async def update_lexeme_fields(
     lex = await session.get(Lexeme, lexeme_id)
     if not lex:
         return
+    if display_word is not None:
+        s = (display_word or "").strip()
+        lex.display_word = s if s else None
     if difficulty_level is not None:
         lex.difficulty_level = difficulty_level
     if definition is not None:

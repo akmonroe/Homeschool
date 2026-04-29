@@ -541,10 +541,13 @@
       const def = w.definition == null ? '' : String(w.definition);
       const lvl = w.difficulty_level != null ? w.difficulty_level : 1;
       let jsonBlock = '';
+      let jsonRaw = '';
       try {
-        jsonBlock = escapeHtml(JSON.stringify(ext, null, 2));
+        jsonRaw = JSON.stringify(ext, null, 2);
+        jsonBlock = escapeHtml(jsonRaw);
       } catch (e) {
         jsonBlock = escapeHtml(String(ext));
+        jsonRaw = String(ext);
       }
       const prBlock = pr
         ? `<div class="lex-section"><strong>Pronunciation</strong><pre>${escapeHtml(pr)}</pre></div>`
@@ -559,11 +562,26 @@
         ${prBlock}
         ${etBlock}
         <div class="lex-section"><strong>Spelling tips</strong>${tricksHtml}</div>
-        <div class="lex-section"><strong>Full extensions (JSON)</strong><pre>${jsonBlock}</pre></div>
-        <div class="lex-edit">
-          <div><label for="lvl-${wid}">Level (1–10)</label><input type="number" min="1" max="10" id="lvl-${wid}" value="${escapeAttr(lvl)}" /></div>
-          <div style="flex:1;min-width:200px"><label for="def-${wid}">Definition (edit)</label><input type="text" id="def-${wid}" value="${escapeAttr(def)}" /></div>
-          <button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'))">Save</button>
+      const disp = (w.display_word == null) ? '' : String(w.display_word);
+      return `<article class="lex-card">
+        <h3>${title}</h3>
+        <div class="lex-meta">Canonical: <code>${canon}</code>${display ? ' · Display: <code>' + display + '</code>' : ''} · Locale: <code>${locale}</code><br>Lexeme id: <code>${lid}</code> · Difficulty: <strong>${escapeHtml(String(lvl))}</strong></div>
+        <div class="lex-section"><strong>Definition</strong><pre>${escapeHtml(def || '(empty)')}</pre></div>
+        ${prBlock}
+        ${etBlock}
+        <div class="lex-section"><strong>Spelling tips</strong>${tricksHtml}</div>
+        <div class="lex-section"><strong>Full extensions (read-only)</strong><pre>${jsonBlock}</pre></div>
+        <div class="lex-edit" style="flex-direction:column;align-items:stretch;gap:12px">
+          <div class="lex-edit" style="margin:0;flex-wrap:wrap">
+            <div><label for="disp-${wid}">Display as</label><input type="text" id="disp-${wid}" value="${escapeAttr(disp)}" placeholder="e.g. McDonald" style="min-width:140px" /></div>
+            <div><label for="lvl-${wid}">Level (1–10)</label><input type="number" min="1" max="10" id="lvl-${wid}" value="${escapeAttr(lvl)}" /></div>
+            <div style="flex:1;min-width:200px"><label for="def-${wid}">Definition (edit)</label><input type="text" id="def-${wid}" value="${escapeAttr(def)}" /></div>
+          </div>
+          <div>
+            <label for="ext-${wid}">Edit extensions (JSON) — merge on save: pronunciation, etymology, spelling_tricks, oxford_learners_links, etc.</label>
+            <textarea id="ext-${wid}" style="min-height:160px;max-width:100%;font-family:ui-monospace,monospace;font-size:0.88rem" spellcheck="false">${escapeHtml(jsonRaw)}</textarea>
+          </div>
+          <button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" data-lexeme-wid="${escapeAttr(wid)}" style="align-self:flex-start" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'), this.getAttribute('data-lexeme-wid'))">Save</button>
         </div>
       </article>`;
     }
@@ -698,16 +716,37 @@
       }
     }
 
-    async function saveDictionaryWord(id) {
-      const level = document.getElementById(`lvl-${id}`).value;
-      const def = document.getElementById(`def-${id}`).value;
+    async function saveDictionaryWord(id, wid) {
+      const wkey = wid || String(id).replace(/[^a-zA-Z0-9-]/g, '');
+      const level = document.getElementById(`lvl-${wkey}`).value;
+      const def = document.getElementById(`def-${wkey}`).value;
+      const displayWord = document.getElementById(`disp-${wkey}`) ? document.getElementById(`disp-${wkey}`).value : null;
+      let extPatch = null;
+      const extEl = document.getElementById(`ext-${wkey}`);
+      if (extEl) {
+        const raw = extEl.value.trim();
+        if (raw) {
+          try {
+            extPatch = JSON.parse(raw);
+            if (extPatch === null || typeof extPatch !== 'object' || Array.isArray(extPatch)) {
+              alert('Extensions must be a JSON object.');
+              return;
+            }
+          } catch (e) {
+            alert('Invalid JSON in extensions: ' + (e.message || e));
+            return;
+          }
+        }
+      }
+      const body = { difficulty_level: parseInt(level, 10) || 1, definition: def, display_word: displayWord || null, extensions: extPatch };
       const res = await fetch(`${DICTATION}/words/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ difficulty_level: parseInt(level, 10) || 1, definition: def })
+        body: JSON.stringify(body)
       });
       if (!res.ok) { alert(await res.text()); return; }
       alert('Saved.');
+      loadDictionaryWords();
     }
 
     function formatLocalDateTime(iso) {
