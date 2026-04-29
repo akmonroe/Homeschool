@@ -22,6 +22,8 @@ Reference for **where data lives**, **relationships**, and **how to extend** lan
 - **Alembic** in `alembic/versions/`.
 - **`0001_core`:** students, projects, assignments, assignment_items, grades, skill_observations.
 - **`0002_dictation_lexemes`:** `lexemes`, `dictation_assignments`, `dictation_attempts`.
+- **`0003_assignment_schedule`:** `available_from`, due indexes, grade timestamps.
+- **`0004_science_experiments`:** `science_experiment_templates`, `science_experiment_runs`, `science_media` (and seed template rows).
 
 ### 2.2 `core.lexemes` — canonical dictionary + dynamic language fields
 
@@ -106,9 +108,15 @@ Dictation AI commits create an **`assignments`** row with **`available_from`** s
 
 See `app/core/models.py` and migrations for **`assignment_items`**, **`skill_observations`**, etc.
 
-Suite-level **assignments** (above) remain separate from **`dictation_assignments`** (per-word queue for the dictation game).
+### 2.8 Science app — `science_experiment_templates`, `science_experiment_runs`, `science_media`
 
----
+- **`science_experiment_templates`:** optional library of published experiments (title, summary, `subject_tags` JSON array, `procedure_outline`). Seeded with two examples in migration `0004`.
+- **`science_experiment_runs`:** one student’s lab write-up. **`source`** is `assigned` (linked to **`core.assignments`** with **`app_slug` = `science`**) or `self_chosen` (from a template) or `ad_hoc`. **`observations`** is a JSONB array of `{ "at", "text" }` (and can hold richer objects later). Optional **`assignment_id`**, **`template_id`**.
+- **`science_media`:** metadata for a file on disk: **`rel_path`** relative to **`SCIENCE_DATA_DIR`**, **`kind`** `image` or `video`. Bytes are **not** stored in Postgres.
+
+The Science UI lists assignments where **`app_slug` = `science`**. Create those via the core assignments API or admin.
+
+Suite-level **assignments** (above) remain separate from **`dictation_assignments`** (per-word queue for the dictation game).
 
 ## 3. SQLite — `dictation.db`
 

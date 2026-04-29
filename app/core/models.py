@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -115,6 +116,104 @@ class Student(Base):
     skill_observations: Mapped[list[SkillObservation]] = relationship(
         back_populates="student", cascade="all, delete-orphan"
     )
+    science_experiment_runs: Mapped[list["ScienceExperimentRun"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )
+
+
+class ScienceExperimentTemplate(Base):
+    """Reusable lab write-up pattern a student can start from (self-chosen) or see via assignment payload."""
+
+    __tablename__ = "science_experiment_templates"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    subject_tags: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    procedure_outline: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    runs: Mapped[list["ScienceExperimentRun"]] = relationship(back_populates="template")
+
+
+class ScienceExperimentRun(Base):
+    """One student experiment session: from an assignment, or chosen from a template, or ad hoc."""
+
+    __tablename__ = "science_experiment_runs"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.students.id", ondelete="CASCADE"), nullable=False
+    )
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.science_experiment_templates.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    assignment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.assignments.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="self_chosen"
+    )  # assigned | self_chosen | ad_hoc
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="draft")
+    hypothesis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    materials: Mapped[str | None] = mapped_column(Text, nullable=True)
+    procedure_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conclusions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observations_json: Mapped[list[Any]] = mapped_column(
+        "observations", JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    student: Mapped[Student] = relationship(back_populates="science_experiment_runs")
+    template: Mapped[ScienceExperimentTemplate | None] = relationship(back_populates="runs")
+    assignment: Mapped[Assignment | None] = relationship(
+        back_populates="science_experiment_runs",
+        foreign_keys="ScienceExperimentRun.assignment_id",
+    )
+    media: Mapped[list["ScienceMedia"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class ScienceMedia(Base):
+    """Image or video stored on disk; path is relative to SCIENCE_DATA_DIR."""
+
+    __tablename__ = "science_media"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.science_experiment_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    rel_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # image | video
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    run: Mapped[ScienceExperimentRun] = relationship(back_populates="media")
 
 
 class Project(Base):
@@ -177,6 +276,9 @@ class Assignment(Base):
     project: Mapped[Project | None] = relationship(back_populates="assignments")
     items: Mapped[list[AssignmentItem]] = relationship(back_populates="assignment", cascade="all, delete-orphan")
     grades: Mapped[list["Grade"]] = relationship(back_populates="assignment")
+    science_experiment_runs: Mapped[list["ScienceExperimentRun"]] = relationship(
+        back_populates="assignment", foreign_keys="ScienceExperimentRun.assignment_id"
+    )
 
 
 class AssignmentItem(Base):

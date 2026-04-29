@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Science lab</title>
+  <link rel="stylesheet" href="static/screen.css" />
+</head>
+<body>
+  <header class="top">
+    <h1>Science experiments</h1>
+    <p>Document labs, add observations, and attach photos or video. Choose a template or start from a teacher assignment (<code>subject: science</code>).</p>
+  </header>
+  <main>
+    <section class="row">
+      <label>Student
+        <select id="student"></select>
+      </label>
+    </section>
+
+    <section>
+      <h2>From teacher</h2>
+      <ul id="assignments" class="list"></ul>
+    </section>
+
+    <section>
+      <h2>Templates (pick your own)</h2>
+      <ul id="templates" class="list"></ul>
+    </section>
+
+    <section>
+      <h2>Or start a blank run</h2>
+      <input type="text" id="ad-hoc-title" placeholder="Experiment title" />
+      <button type="button" id="btn-ad-hoc">Start</button>
+    </section>
+
+    <section>
+      <h2>My experiments</h2>
+      <ul id="runs" class="list"></ul>
+    </section>
+
+    <section id="run-detail" class="hidden">
+      <h2 id="run-title"></h2>
+      <p class="meta" id="run-source"></p>
+      <div class="grid2">
+        <div>
+          <label>Hypothesis<textarea id="f-hyp" rows="3"></textarea></label>
+          <label>Materials<textarea id="f-mat" rows="2"></textarea></label>
+          <label>Procedure / notes<textarea id="f-proc" rows="4"></textarea></label>
+          <label>Conclusions<textarea id="f-con" rows="3"></textarea></label>
+          <button type="button" id="btn-save">Save</button>
+        </div>
+        <div>
+          <h3>Observations</h3>
+          <ul id="obs-list"></ul>
+          <div class="row">
+            <input type="text" id="obs-in" placeholder="Add observation" />
+            <button type="button" id="btn-obs">Add</button>
+          </div>
+          <h3>Media</h3>
+          <div class="row">
+            <input type="file" id="file-in" accept="image/*,video/*" />
+            <button type="button" id="btn-upload">Upload</button>
+          </div>
+          <div id="media-wrap" class="media"></div>
+        </div>
+      </div>
+      <p id="err" class="err"></p>
+    </section>
+  </main>
+  <script>
+    const API = "/apps/science/v1";
+    const CORE = "/core";
+    let studentId = null;
+    let runId = null;
+    const qs = (id) => document.getElementById(id);
+
+    async function loadStudents() {
+      const res = await fetch(CORE + "/students");
+      if (!res.ok) { qs("err").textContent = "Could not load students. Is the core API up?"; return; }
+      const data = await res.json();
+      const sel = qs("student");
+      sel.innerHTML = "";
+      for (const s of data) {
+        const o = document.createElement("option");
+        o.value = s.id;
+        o.textContent = s.display_name;
+        sel.appendChild(o);
+      }
+      if (data.length) {
+        studentId = data[0].id;
+        onStudentChange();
+      }
+      sel.addEventListener("change", onStudentChange);
+    }
+
+    async function onStudentChange() {
+      studentId = qs("student").value;
+      runId = null;
+      qs("run-detail").classList.add("hidden");
+      await loadAssignments();
+      await loadTemplates();
+      await loadRuns();
+    }
+
+    function sidQ() { return "student_id=" + encodeURIComponent(studentId); }
+
+    async function loadAssignments() {
+      const u = new URLSearchParams();
+      u.set("student_id", studentId);
+      u.set("active", "true");
+      const res = await fetch(API + "/assignments?" + u);
+      const ul = qs("assignments");
+      ul.innerHTML = "";
+      if (!res.ok) { ul.textContent = "—"; return; }
+      const rows = await res.json();
+      for (const a of rows) {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = "Start: " + a.title;
+        b.addEventListener("click", () => startFromAssignment(a.id));
+        li.appendChild(b);
+        ul.appendChild(li);
+      }
+      if (!rows.length) {
+        liEmpty(ul, "No science assignments yet. Ask a parent to add one in admin with subject science.");
+      }
+    }
+
+    function liEmpty(ul, msg) {
+      const li = document.createElement("li");
+      li.className = "hint";
+      li.textContent = msg;
+      ul.appendChild(li);
+    }
+
+    async function startFromAssignment(assignmentId) {
+      const res = await fetch(API + "/students/" + studentId + "/runs/from-assignment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignment_id: assignmentId, take_title_from_assignment: true })
+      });
+      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      const r = await res.json();
+      await loadRuns();
+      openRun(r.id);
+    }
+
+    async function loadTemplates() {
+      const res = await fetch(API + "/templates");
+      const ul = qs("templates");
+      ul.innerHTML = "";
+      if (!res.ok) return;
+      for (const t of await res.json()) {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = t.title;
+        b.addEventListener("click", () => fromTemplate(t.id, t.title));
+        li.appendChild(b);
+        const s = document.createElement("span");
+        s.className = "sm";
+        s.textContent = t.summary || "";
+        li.appendChild(s);
+        ul.appendChild(li);
+      }
+    }
+
+    async function fromTemplate(templateId, _title) {
+      const res = await fetch(API + "/students/" + studentId + "/runs/from-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template_id: templateId, take_title_from_template: true })
+      });
+      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      const r = await res.json();
+      await loadRuns();
+      openRun(r.id);
+    }
+
+    document.getElementById("btn-ad-hoc").addEventListener("click", async () => {
+      const title = document.getElementById("ad-hoc-title").value.trim();
+      if (!title) return;
+      const res = await fetch(API + "/students/" + studentId + "/runs/ad-hoc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title })
+      });
+      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      const r = await res.json();
+      document.getElementById("ad-hoc-title").value = "";
+      await loadRuns();
+      openRun(r.id);
+    });
+
+    async function loadRuns() {
+      const res = await fetch(API + "/students/" + studentId + "/runs?limit=50");
+      const ul = qs("runs");
+      ul.innerHTML = "";
+      if (!res.ok) return;
+      for (const r of await res.json()) {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = "#";
+        a.textContent = r.title + " (" + r.status + ", " + r.source + ")";
+        a.addEventListener("click", (e) => { e.preventDefault(); openRun(r.id); });
+        li.appendChild(a);
+        ul.appendChild(li);
+      }
+    }
+
+    async function openRun(id) {
+      runId = id;
+      qs("err").textContent = "";
+      const u = new URLSearchParams();
+      u.set("student_id", studentId);
+      const res = await fetch(API + "/runs/" + id + "?" + u);
+      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      const r = await res.json();
+      qs("run-detail").classList.remove("hidden");
+      qs("run-title").textContent = r.title;
+      qs("run-source").textContent = "Source: " + r.source + (r.assignment_id ? " (assignment)" : "");
+      qs("f-hyp").value = r.hypothesis || "";
+      qs("f-mat").value = r.materials || "";
+      qs("f-proc").value = r.procedure_notes || "";
+      qs("f-con").value = r.conclusions || "";
+      const ol = qs("obs-list");
+      ol.innerHTML = "";
+      (r.observations || []).forEach((o) => {
+        const li = document.createElement("li");
+        li.textContent = (o.text || o) + (o.at ? " — " + o.at : "");
+        ol.appendChild(li);
+      });
+      const mw = qs("media-wrap");
+      mw.innerHTML = "";
+      (r.media || []).forEach((m) => {
+        const d = document.createElement("div");
+        d.className = "m";
+        if (m.kind === "image") {
+          const img = document.createElement("img");
+          img.src = m.url + (m.url.includes("?") ? "&" : "?") + sidQ();
+          img.alt = m.caption || "photo";
+          d.appendChild(img);
+        } else {
+          const v = document.createElement("video");
+          v.src = m.url + (m.url.includes("?") ? "&" : "?") + sidQ();
+          v.controls = true;
+          d.appendChild(v);
+        }
+        if (m.caption) {
+          const c = document.createElement("p");
+          c.className = "sm";
+          c.textContent = m.caption;
+          d.appendChild(c);
+        }
+        mw.appendChild(d);
+      });
+    }
+
+    document.getElementById("btn-save").addEventListener("click", async () => {
+      if (!runId) return;
+      const u = new URLSearchParams();
+      u.set("student_id", studentId);
+      const res = await fetch(API + "/runs/" + runId + "?" + u, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hypothesis: qs("f-hyp").value || null,
+          materials: qs("f-mat").value || null,
+          procedure_notes: qs("f-proc").value || null,
+          conclusions: qs("f-con").value || null,
+        })
+      });
+      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      await loadRuns();
+    });
+
+    document.getElementById("btn-obs").addEventListener("click", async () => {
+      if (!runId) return;
+      const note = document.getElementById("obs-in").value.trim();
+      if (!note) return;
+      const u = new URLSearchParams();
+      u.set("student_id", studentId);
+      const form = new FormData();
+      form.set("note", note);
+      const res = await fetch(API + "/runs/" + runId + "/observations/append?" + u, { method: "POST", body: form });
+      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      document.getElementById("obs-in").value = "";
+      openRun(runId);
+    });
+
+    document.getElementById("btn-upload").addEventListener("click", async () => {
+      if (!runId) return;
+      const f = document.getElementById("file-in");
+      if (!f.files || !f.files[0]) return;
+      const u = new URLSearchParams();
+      u.set("student_id", studentId);
+      const form = new FormData();
+      form.set("file", f.files[0]);
+      const res = await fetch(API + "/runs/" + runId + "/media?" + u, { method: "POST", body: form });
+      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      f.value = "";
+      openRun(runId);
+    });
+
+    loadStudents();
+  </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ from starlette.background import BackgroundTask
 
 from app.apps.dictation.dictation_app import app as dictation_subapp
 from app.apps.dictation.dictation_app import setup_dictation
+from app.apps.science.science_app import app as science_subapp, setup_science
 from app.core.database import core_db_enabled, dispose_engine
 from app.core.router import router as core_router
 
@@ -28,6 +29,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     setup_dictation()
+    setup_science()
     yield
     if core_db_enabled():
         await dispose_engine()
@@ -56,6 +58,11 @@ async def dictation_entry() -> RedirectResponse:
     return RedirectResponse(url="/apps/dictation/ui/", status_code=307)
 
 
+@app.get("/apps/science", include_in_schema=False)
+async def science_entry() -> RedirectResponse:
+    return RedirectResponse(url="/apps/science/ui/", status_code=307)
+
+
 _admin_dir = STATIC_DIR / "admin"
 _admin_index = _admin_dir / "index.html"
 
@@ -81,6 +88,7 @@ async def admin_index_explicit() -> FileResponse:
 
 app.mount("/admin/static", StaticFiles(directory=str(_admin_dir)), name="admin_static")
 app.mount("/apps/dictation", dictation_subapp, name="dictation")
+app.mount("/apps/science", science_subapp, name="science")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 

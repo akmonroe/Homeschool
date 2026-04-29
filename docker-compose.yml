@@ -30,6 +30,8 @@ services:
       DICTATION_TTS_PLAYBACK_TEMPO: ${DICTATION_TTS_PLAYBACK_TEMPO:-0.58}
       DICTATION_TTS_WORD_PLAYBACK_TEMPO: ${DICTATION_TTS_WORD_PLAYBACK_TEMPO:-}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://homeschool:homeschool@postgres:5432/homeschool}
+      # Science app: media lives under this path (same volume as dictation by default).
+      SCIENCE_DATA_DIR: ${SCIENCE_DATA_DIR:-/app/data/science}
     ports:
       - "4500:4500"
     volumes:

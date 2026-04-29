@@ -1,6 +1,6 @@
 # Homeschool
-Repository for AI-enabled homeschooling apps. This monorepo-style layout will
-grow with multiple apps; the first integrated app will be **Dictation**.
+Repository for AI-enabled homeschooling apps. This monorepo-style layout
+grows with multiple apps, including **Dictation** and **Science** (experiment lab).
 
 ## Documentation
 
@@ -20,6 +20,12 @@ that links to each app and to the shared API documentation (`/docs`).
   `#assignments`, `#spelling`, `#dictation-progress`, `#dictation-audio`, `#dictionary`. Served from `app/static/admin/index.html`. Requires Postgres: if the page loads
   but API calls fail, check **`DATABASE_URL`** and `docker compose ps` (Postgres must be healthy).
 - **Legacy URL** `/apps/dictation/ui/admin.html` redirects to **`/admin/`**.
+- **Science** — experiments at **http://localhost:4500/apps/science/ui/**. REST
+  under **`/apps/science/v1`**, OpenAPI: **`/apps/science/docs`**. Photos and video
+  are stored on disk at **`SCIENCE_DATA_DIR`** (default `/app/data/science` inside
+  the **`dictation-data`** volume with Compose). To assign a lab from the parent side,
+  create a suite **assignment** with **`app_slug`: `science`** in the admin
+  (Assignments) or via **`POST /core/students/{id}/assignments`**.
 - **Dictation** — student UI at **http://localhost:4500/apps/dictation/ui/**. REST API under **`/apps/dictation`**;
   OpenAPI: **`/apps/dictation/docs`**. SQLite and generated audio persist in the
   **`dictation-data`** Docker volume (`/app/data` in the container).
