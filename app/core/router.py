@@ -332,7 +332,7 @@ async def update_assignment(
     for k, v in data.items():
         setattr(row, k, v)
     await session.flush()
-    await session.refresh(row)
+    await session.refresh(row, attribute_names=["items"])
     return row
 
 

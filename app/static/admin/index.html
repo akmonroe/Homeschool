@@ -834,6 +834,16 @@
       return assignments.filter(a => (a.app_slug || '') === v);
     }
 
+    function assignmentSpellingWords(a) {
+      const items = Array.isArray(a.items) ? a.items : [];
+      const words = items
+        .filter(it => it && it.item_type === 'spelling_word' && it.payload_json && it.payload_json.word)
+        .sort((x, y) => (x.sequence || 0) - (y.sequence || 0))
+        .map(it => String(it.payload_json.word).trim().toLowerCase())
+        .filter(Boolean);
+      return [...new Set(words)];
+    }
+
     function renderAssignmentCard(a, studentId) {
       const aid = escapeAttr(a.id);
       const slug = a.app_slug || '';
@@ -845,6 +855,12 @@
       const avail = formatLocalDateTime(a.available_from);
       const due = formatLocalDateTime(a.due_at);
       const wid = String(a.id).replace(/[^a-zA-Z0-9-]/g, '');
+      const words = assignmentSpellingWords(a);
+      const wordsBlock = words.length
+        ? `<div class="assign-words" style="margin-top:8px;font-size:0.92rem"><strong>Assigned words</strong> (${words.length}):<br><span style="word-break:break-word">${words.map(w => escapeHtml(w)).join(', ')}</span></div>`
+        : ((a.app_slug || '') === 'dictation'
+          ? '<p class="hint" style="margin:8px 0 0 0">No spelling words on this row yet (core <code>assignment_items</code> empty).</p>'
+          : '');
       return `<details class="assignment-card" id="assign-card-${wid}">
         <summary>
           <span class="assign-title">${title}</span>
@@ -854,6 +870,7 @@
         <div class="assign-meta">
           <strong>Opens:</strong> ${escapeHtml(avail)} · <strong>Due:</strong> ${escapeHtml(due)}
           ${instr ? '<br><span style="margin-top:6px;display:inline-block">' + escapeHtml(instr.length > 200 ? instr.slice(0, 200) + '…' : instr) + '</span>' : ''}
+          ${wordsBlock}
         </div>
         <div class="assign-form">
           <label for="atitle-${wid}">Title</label>

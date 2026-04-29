@@ -82,24 +82,6 @@ class AssignmentUpdate(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-class AssignmentOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id: uuid.UUID
-    student_id: uuid.UUID
-    project_id: uuid.UUID | None
-    title: str
-    app_slug: str | None
-    status: str
-    available_from: datetime | None
-    due_at: datetime | None
-    instructions: str | None
-    rubric_json: dict[str, Any] | None
-    metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
-    created_at: datetime
-    updated_at: datetime
-
-
 class AssignmentItemCreate(BaseModel):
     sequence: int = 0
     item_type: str = Field(..., min_length=1, max_length=64)
@@ -116,6 +98,27 @@ class AssignmentItemOut(BaseModel):
     payload_json: dict[str, Any]
     created_at: datetime
 
+
+class AssignmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: uuid.UUID
+    student_id: uuid.UUID
+    project_id: uuid.UUID | None
+    title: str
+    app_slug: str | None
+    status: str
+    available_from: datetime | None
+    due_at: datetime | None
+    instructions: str | None
+    rubric_json: dict[str, Any] | None
+    metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
+    created_at: datetime
+    updated_at: datetime
+    items: list[AssignmentItemOut] = Field(
+        default_factory=list,
+        description="Tall items (e.g. spelling_word rows with payload word).",
+    )
 
 class GradeCreate(BaseModel):
     assignment_id: uuid.UUID | None = None

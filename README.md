@@ -45,7 +45,7 @@ schema is always present.
   **skill_observations** (time-series skill signals for humans or AI).
 - **HTTP API**: under **`/core`** (see **`/docs`**). Examples:
   - `GET /core/students`, `POST /core/students`
-  - `GET /core/students/{id}/assignments`, `POST .../assignments`
+  - `GET /core/students/{id}/assignments` — each assignment may include **`items`** (tall `assignment_items`, e.g. `spelling_word` + `payload_json.word` for dictation)
   - `POST .../assignments/{id}/items` — agent-friendly steps (`item_type` +
     `payload_json`)
   - `GET/POST .../grades`, `PATCH .../grades/{grade_id}`, `GET/POST .../skills`
