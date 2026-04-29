@@ -4,70 +4,130 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Science lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="static/screen.css" />
 </head>
 <body>
-  <header class="top">
-    <h1>Science experiments</h1>
-    <p>Document labs, add observations, and attach photos or video. Choose a template or start from a teacher assignment (<code>subject: science</code>).</p>
-  </header>
-  <main>
-    <section class="row">
-      <label>Student
-        <select id="student"></select>
-      </label>
-    </section>
-
-    <section>
-      <h2>From teacher</h2>
-      <ul id="assignments" class="list"></ul>
-    </section>
-
-    <section>
-      <h2>Templates (pick your own)</h2>
-      <ul id="templates" class="list"></ul>
-    </section>
-
-    <section>
-      <h2>Or start a blank run</h2>
-      <input type="text" id="ad-hoc-title" placeholder="Experiment title" />
-      <button type="button" id="btn-ad-hoc">Start</button>
-    </section>
-
-    <section>
-      <h2>My experiments</h2>
-      <ul id="runs" class="list"></ul>
-    </section>
-
-    <section id="run-detail" class="hidden">
-      <h2 id="run-title"></h2>
-      <p class="meta" id="run-source"></p>
-      <div class="grid2">
-        <div>
-          <label>Hypothesis<textarea id="f-hyp" rows="3"></textarea></label>
-          <label>Materials<textarea id="f-mat" rows="2"></textarea></label>
-          <label>Procedure / notes<textarea id="f-proc" rows="4"></textarea></label>
-          <label>Conclusions<textarea id="f-con" rows="3"></textarea></label>
-          <button type="button" id="btn-save">Save</button>
+  <div class="app">
+    <header class="app-header" role="banner">
+      <div class="brand">
+        <h1>Science lab</h1>
+        <span class="tag">Workspace</span>
+      </div>
+      <div class="header-right">
+        <div class="field-inline">
+          <label for="student">Student</label>
+          <select id="student" aria-label="Select student"></select>
         </div>
-        <div>
-          <h3>Observations</h3>
-          <ul id="obs-list"></ul>
-          <div class="row">
-            <input type="text" id="obs-in" placeholder="Add observation" />
-            <button type="button" id="btn-obs">Add</button>
+        <a class="link-quiet" href="/">Homeschool</a>
+        <a class="link-quiet" href="/admin/">Admin</a>
+        <a class="link-quiet" href="/apps/science/docs" target="_blank" rel="noopener">API</a>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <aside class="sidebar" aria-label="Navigation">
+        <div class="sidebar-scroll">
+          <nav class="nav-block" aria-label="From teacher">
+            <h2 class="nav-title">From teacher</h2>
+            <ul id="assignments" class="nav-list"></ul>
+            <p class="hint-line">Parent assignments use <code>app_slug: science</code> in the admin.</p>
+          </nav>
+
+          <nav class="nav-block" aria-label="Templates">
+            <h2 class="nav-title">Templates</h2>
+            <ul id="templates" class="nav-list"></ul>
+          </nav>
+
+          <div class="nav-block">
+            <h2 class="nav-title">New page</h2>
+            <div class="new-doc-row">
+              <input type="text" id="ad-hoc-title" placeholder="Title…" aria-label="New experiment title" />
+              <button type="button" class="btn-primary" id="btn-ad-hoc" title="Create blank experiment">Create</button>
+            </div>
           </div>
-          <h3>Media</h3>
-          <div class="row">
-            <input type="file" id="file-in" accept="image/*,video/*" />
-            <button type="button" id="btn-upload">Upload</button>
+
+          <nav class="nav-block" aria-label="My experiments">
+            <h2 class="nav-title">My experiments</h2>
+            <ul id="runs" class="nav-list"></ul>
+          </nav>
+        </div>
+      </aside>
+
+      <div class="content">
+        <div id="view-library" class="view">
+          <div class="view-library-inner">
+            <p class="welcome">Your lab notebook</p>
+            <p class="welcome-sub">
+              Open an experiment from the list, or start from a template or a blank page. The editor is one continuous document—like a page in Confluence or a simple word processor—with sections for hypothesis, materials, procedure, results, and attachments.
+            </p>
           </div>
-          <div id="media-wrap" class="media"></div>
+        </div>
+
+        <div id="view-doc" class="view hidden" hidden>
+          <div class="doc-shell">
+            <div class="doc-toolbar">
+              <div class="doc-toolbar-left">
+                <button type="button" class="btn-back" id="btn-back" aria-label="Back to list">← All experiments</button>
+                <span id="doc-status-pill" class="status-pill" aria-live="polite"></span>
+              </div>
+              <p id="err" class="toast-err" role="alert"></p>
+              <div class="doc-toolbar-right">
+                <span class="save-hint" id="save-hint">Unsaved changes are not kept until you save.</span>
+                <button type="button" class="btn-primary" id="btn-save">Save</button>
+              </div>
+            </div>
+
+            <div class="doc-scroll">
+              <article class="doc-page" aria-label="Experiment document">
+                <h1 class="doc-title" id="doc-title">—</h1>
+                <p class="doc-lede" id="doc-source"></p>
+
+                <section class="doc-section">
+                  <h2>Hypothesis</h2>
+                  <textarea id="f-hyp" rows="4" placeholder="What do you expect to happen, and why?"></textarea>
+                </section>
+                <section class="doc-section">
+                  <h2>Materials</h2>
+                  <textarea id="f-mat" rows="3" placeholder="List equipment and supplies."></textarea>
+                </section>
+                <section class="doc-section doc-section--proc">
+                  <h2>Procedure &amp; notes</h2>
+                  <textarea id="f-proc" rows="12" placeholder="Step-by-step method and in-progress notes…"></textarea>
+                </section>
+                <section class="doc-section">
+                  <h2>Conclusions</h2>
+                  <textarea id="f-con" rows="4" placeholder="What did you learn? What would you try next?"></textarea>
+                </section>
+
+                <section class="doc-section">
+                  <h2>Observations</h2>
+                  <p class="empty-state" id="obs-empty" hidden>No observations yet. Add a timestamped note below.</p>
+                  <ul id="obs-list" class="timeline" aria-label="Observation log"></ul>
+                  <div class="obs-add">
+                    <input type="text" id="obs-in" placeholder="Add an observation (dated automatically)…" autocomplete="off" />
+                    <button type="button" class="btn-secondary" id="btn-obs">Add</button>
+                  </div>
+                </section>
+
+                <section class="doc-section">
+                  <h2>Photos &amp; video</h2>
+                  <div class="media-upload">
+                    <input type="file" id="file-in" accept="image/*,video/*" />
+                    <button type="button" class="btn-secondary" id="btn-upload">Upload</button>
+                  </div>
+                  <div id="media-wrap" class="media-grid" aria-label="Attached media"></div>
+                </section>
+              </article>
+            </div>
+          </div>
         </div>
       </div>
-      <p id="err" class="err"></p>
-    </section>
-  </main>
+    </div>
+  </div>
+
   <script>
     const API = "/apps/science/v1";
     const CORE = "/core";
@@ -75,9 +135,31 @@
     let runId = null;
     const qs = (id) => document.getElementById(id);
 
+    function showLibrary() {
+      qs("view-library").classList.remove("hidden");
+      qs("view-doc").classList.add("hidden");
+      qs("view-doc").hidden = true;
+      runId = null;
+      document.querySelectorAll(".nav-item-btn, .nav-item").forEach((el) => el.classList.remove("is-active"));
+    }
+
+    function showDoc() {
+      qs("view-library").classList.add("hidden");
+      qs("view-doc").classList.remove("hidden");
+      qs("view-doc").hidden = false;
+    }
+
+    function setErr(msg) {
+      const e = qs("err");
+      e.textContent = msg || "";
+    }
+
     async function loadStudents() {
       const res = await fetch(CORE + "/students");
-      if (!res.ok) { qs("err").textContent = "Could not load students. Is the core API up?"; return; }
+      if (!res.ok) {
+        setErr("Could not load students. Check that the core API and database are available.");
+        return;
+      }
       const data = await res.json();
       const sel = qs("student");
       sel.innerHTML = "";
@@ -96,14 +178,28 @@
 
     async function onStudentChange() {
       studentId = qs("student").value;
-      runId = null;
-      qs("run-detail").classList.add("hidden");
+      setErr("");
+      showLibrary();
       await loadAssignments();
       await loadTemplates();
       await loadRuns();
     }
 
-    function sidQ() { return "student_id=" + encodeURIComponent(studentId); }
+    function sidQ() {
+      return "student_id=" + encodeURIComponent(studentId);
+    }
+
+    function sourcePillClass(src) {
+      if (src === "assigned") return "assigned";
+      if (src === "ad_hoc") return "adhoc";
+      return "self";
+    }
+
+    function sourcePillLabel(src) {
+      if (src === "assigned") return "From teacher";
+      if (src === "ad_hoc") return "Blank page";
+      return "From template";
+    }
 
     async function loadAssignments() {
       const u = new URLSearchParams();
@@ -112,39 +208,54 @@
       const res = await fetch(API + "/assignments?" + u);
       const ul = qs("assignments");
       ul.innerHTML = "";
-      if (!res.ok) { ul.textContent = "—"; return; }
+      if (!res.ok) {
+        ul.innerHTML = "<li class='empty-state'>Could not load assignments.</li>";
+        return;
+      }
       const rows = await res.json();
       for (const a of rows) {
         const li = document.createElement("li");
         const b = document.createElement("button");
         b.type = "button";
-        b.textContent = "Start: " + a.title;
-        b.addEventListener("click", () => startFromAssignment(a.id));
+        b.className = "nav-item-btn";
+        b.setAttribute("data-run-key", "a-" + a.id);
+        b.innerHTML = "<span class='line'>" + escapeHtml(a.title) + "</span><span class='sub'>Start from assignment</span>";
+        b.addEventListener("click", () => startFromAssignment(a.id, b));
         li.appendChild(b);
         ul.appendChild(li);
       }
       if (!rows.length) {
-        liEmpty(ul, "No science assignments yet. Ask a parent to add one in admin with subject science.");
+        liEmpty(ul, "No science assignments. Add one in admin (subject: science).");
       }
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
     }
 
     function liEmpty(ul, msg) {
       const li = document.createElement("li");
-      li.className = "hint";
+      li.className = "empty-state";
       li.textContent = msg;
       ul.appendChild(li);
     }
 
-    async function startFromAssignment(assignmentId) {
+    async function startFromAssignment(assignmentId, btnEl) {
+      setErr("");
       const res = await fetch(API + "/students/" + studentId + "/runs/from-assignment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignment_id: assignmentId, take_title_from_assignment: true })
+        body: JSON.stringify({ assignment_id: assignmentId, take_title_from_assignment: true }),
       });
-      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
       const r = await res.json();
       await loadRuns();
-      openRun(r.id);
+      openRun(r.id, btnEl);
     }
 
     async function loadTemplates() {
@@ -156,42 +267,50 @@
         const li = document.createElement("li");
         const b = document.createElement("button");
         b.type = "button";
-        b.textContent = t.title;
-        b.addEventListener("click", () => fromTemplate(t.id, t.title));
+        b.className = "nav-item-btn";
+        b.setAttribute("data-run-key", "t-" + t.id);
+        const sub = t.summary ? escapeHtml(t.summary) : "Template";
+        b.innerHTML = "<span class='line'>" + escapeHtml(t.title) + "</span><span class='sub'>" + sub + "</span>";
+        b.addEventListener("click", () => fromTemplate(t.id, b));
         li.appendChild(b);
-        const s = document.createElement("span");
-        s.className = "sm";
-        s.textContent = t.summary || "";
-        li.appendChild(s);
         ul.appendChild(li);
       }
     }
 
-    async function fromTemplate(templateId, _title) {
+    async function fromTemplate(templateId, btnEl) {
+      setErr("");
       const res = await fetch(API + "/students/" + studentId + "/runs/from-template", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: templateId, take_title_from_template: true })
+        body: JSON.stringify({ template_id: templateId, take_title_from_template: true }),
       });
-      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
       const r = await res.json();
       await loadRuns();
-      openRun(r.id);
+      openRun(r.id, btnEl);
     }
 
-    document.getElementById("btn-ad-hoc").addEventListener("click", async () => {
-      const title = document.getElementById("ad-hoc-title").value.trim();
+    qs("btn-ad-hoc").addEventListener("click", async () => {
+      const title = qs("ad-hoc-title").value.trim();
       if (!title) return;
+      setErr("");
       const res = await fetch(API + "/students/" + studentId + "/runs/ad-hoc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title })
+        body: JSON.stringify({ title }),
       });
-      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
       const r = await res.json();
-      document.getElementById("ad-hoc-title").value = "";
+      qs("ad-hoc-title").value = "";
       await loadRuns();
-      openRun(r.id);
+      const btn = document.querySelector('[data-run-id="' + r.id + '"]');
+      openRun(r.id, btn);
     });
 
     async function loadRuns() {
@@ -201,56 +320,98 @@
       if (!res.ok) return;
       for (const r of await res.json()) {
         const li = document.createElement("li");
-        const a = document.createElement("a");
-        a.href = "#";
-        a.textContent = r.title + " (" + r.status + ", " + r.source + ")";
-        a.addEventListener("click", (e) => { e.preventDefault(); openRun(r.id); });
-        li.appendChild(a);
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "nav-item";
+        b.setAttribute("data-run-id", r.id);
+        b.innerHTML =
+          "<span class='line'>" +
+          escapeHtml(r.title) +
+          "</span><span class='sub'>" +
+          escapeHtml(r.status) +
+          " · " +
+          sourcePillLabel(r.source) +
+          "</span>";
+        b.addEventListener("click", () => openRun(r.id, b));
+        if (r.id === runId) b.classList.add("is-active");
+        li.appendChild(b);
         ul.appendChild(li);
       }
     }
 
-    async function openRun(id) {
+    async function openRun(id, navBtn) {
       runId = id;
-      qs("err").textContent = "";
+      setErr("");
       const u = new URLSearchParams();
       u.set("student_id", studentId);
       const res = await fetch(API + "/runs/" + id + "?" + u);
-      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
       const r = await res.json();
-      qs("run-detail").classList.remove("hidden");
-      qs("run-title").textContent = r.title;
-      qs("run-source").textContent = "Source: " + r.source + (r.assignment_id ? " (assignment)" : "");
+      showDoc();
+      document.querySelectorAll(".nav-item-btn, .nav-item").forEach((el) => el.classList.remove("is-active"));
+      const inDoc = navBtn && document.body.contains(navBtn);
+      if (inDoc) {
+        navBtn.classList.add("is-active");
+      } else {
+        const byRun = document.querySelector('[data-run-id="' + id + '"]');
+        if (byRun) byRun.classList.add("is-active");
+      }
+
+      qs("doc-title").textContent = r.title;
+      const pill = qs("doc-status-pill");
+      pill.textContent = sourcePillLabel(r.source);
+      pill.className = "status-pill " + sourcePillClass(r.source);
+      const meta = "Last updated " + (r.updated_at ? new Date(r.updated_at).toLocaleString() : "—") +
+        (r.assignment_id ? " · Linked to a teacher assignment." : "");
+      qs("doc-source").textContent = meta;
+
       qs("f-hyp").value = r.hypothesis || "";
       qs("f-mat").value = r.materials || "";
       qs("f-proc").value = r.procedure_notes || "";
       qs("f-con").value = r.conclusions || "";
+
+      const obs = r.observations || [];
       const ol = qs("obs-list");
       ol.innerHTML = "";
-      (r.observations || []).forEach((o) => {
+      qs("obs-empty").hidden = obs.length > 0;
+      obs.forEach((o) => {
         const li = document.createElement("li");
-        li.textContent = (o.text || o) + (o.at ? " — " + o.at : "");
+        const t = o.at
+          ? new Date(o.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+          : "";
+        li.innerHTML =
+          "<span class='time'>" +
+          escapeHtml(t || "Note") +
+          "</span>" +
+          escapeHtml(String(o.text != null ? o.text : o));
         ol.appendChild(li);
       });
+
       const mw = qs("media-wrap");
       mw.innerHTML = "";
       (r.media || []).forEach((m) => {
         const d = document.createElement("div");
-        d.className = "m";
+        d.className = "media-card";
+        const uMedia = m.url + (m.url.includes("?") ? "&" : "?") + sidQ();
         if (m.kind === "image") {
           const img = document.createElement("img");
-          img.src = m.url + (m.url.includes("?") ? "&" : "?") + sidQ();
-          img.alt = m.caption || "photo";
+          img.src = uMedia;
+          img.alt = m.caption || "Photo";
+          img.loading = "lazy";
           d.appendChild(img);
         } else {
           const v = document.createElement("video");
-          v.src = m.url + (m.url.includes("?") ? "&" : "?") + sidQ();
+          v.src = uMedia;
           v.controls = true;
+          v.setAttribute("playsinline", "");
           d.appendChild(v);
         }
         if (m.caption) {
-          const c = document.createElement("p");
-          c.className = "sm";
+          const c = document.createElement("div");
+          c.className = "cap";
           c.textContent = m.caption;
           d.appendChild(c);
         }
@@ -258,10 +419,17 @@
       });
     }
 
-    document.getElementById("btn-save").addEventListener("click", async () => {
+    qs("btn-back").addEventListener("click", () => {
+      setErr("");
+      showLibrary();
+      loadRuns();
+    });
+
+    qs("btn-save").addEventListener("click", async () => {
       if (!runId) return;
       const u = new URLSearchParams();
       u.set("student_id", studentId);
+      setErr("");
       const res = await fetch(API + "/runs/" + runId + "?" + u, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -270,38 +438,57 @@
           materials: qs("f-mat").value || null,
           procedure_notes: qs("f-proc").value || null,
           conclusions: qs("f-con").value || null,
-        })
+        }),
       });
-      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
+      const hint = qs("save-hint");
+      const old = hint.textContent;
+      hint.textContent = "Saved.";
+      setTimeout(() => {
+        hint.textContent = old;
+      }, 2000);
       await loadRuns();
     });
 
-    document.getElementById("btn-obs").addEventListener("click", async () => {
+    qs("btn-obs").addEventListener("click", async () => {
       if (!runId) return;
-      const note = document.getElementById("obs-in").value.trim();
+      const note = qs("obs-in").value.trim();
       if (!note) return;
+      setErr("");
       const u = new URLSearchParams();
       u.set("student_id", studentId);
       const form = new FormData();
       form.set("note", note);
       const res = await fetch(API + "/runs/" + runId + "/observations/append?" + u, { method: "POST", body: form });
-      if (!res.ok) { qs("err").textContent = await res.text(); return; }
-      document.getElementById("obs-in").value = "";
-      openRun(runId);
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
+      qs("obs-in").value = "";
+      const btn = document.querySelector('.nav-item.is-active, .nav-item-btn.is-active');
+      openRun(runId, btn);
     });
 
-    document.getElementById("btn-upload").addEventListener("click", async () => {
+    qs("btn-upload").addEventListener("click", async () => {
       if (!runId) return;
-      const f = document.getElementById("file-in");
+      const f = qs("file-in");
       if (!f.files || !f.files[0]) return;
+      setErr("");
       const u = new URLSearchParams();
       u.set("student_id", studentId);
       const form = new FormData();
       form.set("file", f.files[0]);
       const res = await fetch(API + "/runs/" + runId + "/media?" + u, { method: "POST", body: form });
-      if (!res.ok) { qs("err").textContent = await res.text(); return; }
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
       f.value = "";
-      openRun(runId);
+      const btn = document.querySelector('.nav-item.is-active, .nav-item-btn.is-active');
+      openRun(runId, btn);
     });
 
     loadStudents();
