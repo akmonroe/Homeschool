@@ -17,11 +17,15 @@ from pydantic import BaseModel, Field
 from TTS.api import TTS
 
 from app.apps.dictation import database
-from app.apps.dictation.dictation_tts import (
-    playback_tempo_from_env,
-    tts_speaker_from_env,
-    wav_through_tempo,
-    word_playback_tempo_from_env,
+from app.apps.dictation.dictation_tts import wav_through_tempo
+from app.apps.dictation.dictation_tts_settings import (
+    VCTK_FALLBACK_SPEAKERS,
+    clean_dictation_ollama_sentence,
+    get_effective_config,
+    get_env_defaults,
+    get_overrides_snapshot,
+    set_overrides,
+    clear_overrides,
 )
 from app.apps.dictation.ollama_settings import DICTATION_OLLAMA_MODEL, OLLAMA_GENERATE_URL
 from app.apps.dictation.routers import dictionary, study, users
@@ -30,6 +34,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 DATA_DIR = Path(os.getenv("DICTATION_DATA_DIR", "/app/data"))
 CURRENT_SENTENCE_AUDIO = DATA_DIR / "current_dictation_sentence.wav"
 CURRENT_WORD_AUDIO = DATA_DIR / "current_dictation_word.wav"
+PREVIEW_TTS_AUDIO = DATA_DIR / "dictation_tts_preview.wav"
 # Legacy single-file path (unused); kept name for any external references
 CURRENT_AUDIO = CURRENT_SENTENCE_AUDIO
 
@@ -62,6 +67,172 @@ class DictationRequest(BaseModel):
     )
 
 
+class TtsSettingsPut(BaseModel):
+    """Override dictation TTS for this app process. Omit a field to leave the current value."""
+
+    speaker: str | None = None
+    sentence_tempo: float | None = Field(
+        None,
+        ge=0.25,
+        le=1.0,
+        description="Sentence playback: lower = slower (0.5 is half speed). 1.0 = full speed.",
+    )
+    word_tempo: float | None = Field(
+        None, ge=0.25, le=1.0, description="Word-only playback speed (same scale as sentence_tempo)."
+    )
+    use_env_defaults: bool = Field(
+        False,
+        description="If true, clear overrides; env vars apply. Other fields are ignored for overrides.",
+    )
+
+
+class TtsPreviewRequest(BaseModel):
+    """Preview TTS for admin without changing saved practice audio."""
+
+    speaker: str = Field(..., min_length=1, description="VCTK speaker id, e.g. p225")
+    sentence_tempo: float = Field(0.58, ge=0.25, le=1.0)
+    word_tempo: float = Field(0.65, ge=0.25, le=1.0)
+    sample: str = Field(
+        "sentence",
+        description="Try 'sentence' (short line) or 'word' (single word) to match student UI.",
+    )
+
+
+def _list_speaker_ids() -> list[str]:
+    if tts_model is None:
+        return list(VCTK_FALLBACK_SPEAKERS)
+    for attr in ("speakers", "speakers_id"):
+        s = getattr(tts_model, attr, None)
+        if s:
+            return list(s)
+    return list(VCTK_FALLBACK_SPEAKERS)
+
+
+def _ollama_dictation_user_prompt(word: str) -> str:
+    return (
+        f"Write one natural English sentence for a child's spelling test. The sentence must be between 6 and 14 words. "
+        f"Use the spelling word exactly: {word}\n"
+        f"Output only the sentence, nothing else. No title, no quotes, no explanations."
+    )
+
+
+def _ollama_dictation_options() -> dict:
+    return {
+        "num_predict": 80,
+        "num_ctx": 256,
+        "stop": ["\n\n", "\n#", "\n##"],
+        "temperature": 0.55,
+    }
+
+
+def _ollama_dictation_system() -> str:
+    return (
+        "You are a language teacher writing short dictation sentences. "
+        "You write exactly one clear English sentence, grammatically correct, for elementary or middle school. "
+        "You never add commentary, prefaces, or a second sentence."
+    )
+
+
+def _ollama_dictation_request_body(word: str) -> dict:
+    return {
+        "model": DICTATION_OLLAMA_MODEL,
+        "prompt": _ollama_dictation_user_prompt(word),
+        "stream": False,
+        "options": _ollama_dictation_options(),
+        "system": _ollama_dictation_system(),
+    }
+
+
+@app.get("/tts-settings", tags=["AI Engine"])
+def get_tts_settings() -> dict:
+    """Current dictation TTS: env defaults, in-memory overrides, and effective values for playback."""
+    env = get_env_defaults()
+    ovr = get_overrides_snapshot()
+    eff = get_effective_config()
+    return {
+        "env": env,
+        "overrides": ovr,
+        "effective": {"speaker": eff.speaker, "sentence_tempo": eff.sentence_tempo, "word_tempo": eff.word_tempo},
+    }
+
+
+@app.put("/tts-settings", tags=["AI Engine"])
+def put_tts_settings(body: TtsSettingsPut) -> dict:
+    """Set or clear dictation TTS overrides (in-memory, until container restart for env-only)."""
+    if body.use_env_defaults:
+        clear_overrides()
+    else:
+        set_overrides(
+            speaker=body.speaker,
+            sentence_tempo=body.sentence_tempo,
+            word_tempo=body.word_tempo,
+        )
+    eff = get_effective_config()
+    return {
+        "ok": True,
+        "overrides": get_overrides_snapshot(),
+        "effective": {"speaker": eff.speaker, "sentence_tempo": eff.sentence_tempo, "word_tempo": eff.word_tempo},
+    }
+
+
+@app.get("/tts-voices", tags=["AI Engine"])
+def get_tts_voices() -> dict[str, list[str]]:
+    """Speaker IDs for the loaded VCTK VITS model (e.g. p225)."""
+    return {"speakers": _list_speaker_ids()}
+
+
+def _synthesize_tts_preview_wav(
+    text: str,
+    *,
+    speaker: str,
+    tempo: float,
+    out_path: Path,
+) -> None:
+    if tts_model is None:
+        raise HTTPException(status_code=503, detail="TTS model is not loaded yet.")
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as raw_f:
+        raw = Path(raw_f.name)
+    try:
+        tts_model.tts_to_file(
+            text=text,
+            speaker=speaker.strip(),
+            file_path=str(raw),
+            split_sentences=False,
+        )
+        try:
+            wav_through_tempo(raw, out_path, tempo)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            print(f"ffmpeg tempo (preview) failed, using raw: {exc}")
+            shutil.copyfile(raw, out_path)
+    finally:
+        raw.unlink(missing_ok=True)
+
+
+PREVIEW_TEXT_SENTENCE = "This is a sample of dictation playback in your home school."
+PREVIEW_TEXT_WORD = "spelling"
+
+
+@app.post("/tts-preview", tags=["AI Engine"])
+def post_tts_preview(body: TtsPreviewRequest) -> dict:
+    """Render a short WAV to preview voice and tempo; does not affect the student's last practice audio."""
+    kind = (body.sample or "sentence").strip().lower()
+    if kind in ("word", "w", "1"):
+        text, tempo = PREVIEW_TEXT_WORD, body.word_tempo
+    else:
+        text, tempo = PREVIEW_TEXT_SENTENCE, body.sentence_tempo
+    _synthesize_tts_preview_wav(text, speaker=body.speaker, tempo=tempo, out_path=PREVIEW_TTS_AUDIO)
+    return {"ok": True, "audio_url": "/apps/dictation/audio/tts-preview", "sample": kind, "text": text}
+
+
+@app.get("/audio/tts-preview", tags=["AI Engine"])
+def get_tts_preview_audio() -> FileResponse:
+    if not PREVIEW_TTS_AUDIO.is_file():
+        raise HTTPException(
+            status_code=404, detail="No preview yet — POST /tts-preview in the admin voice panel first."
+        )
+    return FileResponse(str(PREVIEW_TTS_AUDIO), media_type="audio/wav")
+
+
 def setup_dictation() -> None:
     """Initialize SQLite and load VITS. Call from the root app lifespan: mounted
     sub-applications do not receive FastAPI startup events when the parent boots.
@@ -90,9 +261,10 @@ def _synthesize_dictation_wavs(sentence: str, word_for_tts: str) -> None:
     """Write sentence + word WAVs with clearer pacing (VITS + ffmpeg tempo)."""
     if tts_model is None:
         raise HTTPException(status_code=503, detail="TTS model is not loaded yet.")
-    speaker = tts_speaker_from_env()
-    tempo_sent = playback_tempo_from_env()
-    tempo_word = word_playback_tempo_from_env()
+    cfg = get_effective_config()
+    speaker = cfg.speaker
+    tempo_sent = cfg.sentence_tempo
+    tempo_word = cfg.word_tempo
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as raw_s:
         raw_sentence = Path(raw_s.name)
@@ -153,22 +325,32 @@ def generate_dictation(request: DictationRequest) -> dict[str, str | int | bool]
             sentence = str(_GEN_CACHE["sentence"]).strip()
             from_cache = True
         else:
-            prompt = (
-                f"Write a simple, 8-word sentence in English for a spelling test. "
-                f"Include the word '{word_for_tts}'. Output ONLY the sentence, with no quotes or extra text."
-            )
-            try:
-                response = requests.post(
-                    OLLAMA_GENERATE_URL,
-                    json={"model": DICTATION_OLLAMA_MODEL, "prompt": prompt, "stream": False},
-                    timeout=120,
-                )
-                response.raise_for_status()
-                sentence = response.json()["response"].strip()
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Ollama Error: {e!s}") from e
+            last_err: str | None = None
+            sentence = ""
+            for attempt in range(2):
+                try:
+                    body = _ollama_dictation_request_body(word_for_tts)
+                    if attempt == 1:
+                        opts = dict(body.get("options") or {})
+                        opts["temperature"] = 0.25
+                        body["options"] = opts
+                    response = requests.post(
+                        OLLAMA_GENERATE_URL,
+                        json=body,
+                        timeout=120,
+                    )
+                    response.raise_for_status()
+                    raw = (response.json().get("response") or "").strip()
+                except Exception as e:
+                    last_err = str(e)
+                    break
+                sentence = clean_dictation_ollama_sentence(raw, word_for_tts)
+                if sentence:
+                    break
+                last_err = "Model output did not contain the target word or was empty after cleanup."
             if not sentence:
-                raise HTTPException(status_code=500, detail="Ollama returned an empty sentence.")
+                msg = f"Ollama Error: {last_err}" if last_err else "Ollama returned an empty or unusable sentence."
+                raise HTTPException(status_code=500, detail=msg)
 
             _GEN_CACHE["word_key"] = word_key
             _GEN_CACHE["display_word"] = word_for_tts

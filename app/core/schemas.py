@@ -57,27 +57,29 @@ class AssignmentCreate(BaseModel):
     project_id: uuid.UUID | None = None
     app_slug: str | None = None
     status: str = "draft"
-    due_at: datetime | None = None
+    available_from: datetime | None = Field(
+        None,
+        description="When the assignment becomes available (timezone-aware). Null = no start gate.",
+    )
+    due_at: datetime | None = Field(
+        None,
+        description="When the assignment is due (timezone-aware). Null = no fixed deadline.",
+    )
     instructions: str | None = None
     rubric_json: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class AssignmentOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id: uuid.UUID
-    student_id: uuid.UUID
-    project_id: uuid.UUID | None
-    title: str
-    app_slug: str | None
-    status: str
-    due_at: datetime | None
-    instructions: str | None
-    rubric_json: dict[str, Any] | None
-    metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
-    created_at: datetime
-    updated_at: datetime
+class AssignmentUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=500)
+    project_id: uuid.UUID | None = None
+    app_slug: str | None = None
+    status: str | None = None
+    available_from: datetime | None = None
+    due_at: datetime | None = None
+    instructions: str | None = None
+    rubric_json: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class AssignmentItemCreate(BaseModel):
@@ -97,6 +99,28 @@ class AssignmentItemOut(BaseModel):
     created_at: datetime
 
 
+class AssignmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: uuid.UUID
+    student_id: uuid.UUID
+    project_id: uuid.UUID | None
+    title: str
+    app_slug: str | None
+    status: str
+    available_from: datetime | None
+    due_at: datetime | None
+    instructions: str | None
+    rubric_json: dict[str, Any] | None
+    metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
+    created_at: datetime
+    updated_at: datetime
+    items: list[AssignmentItemOut] = Field(
+        default_factory=list,
+        description="Tall items (e.g. spelling_word rows with payload word).",
+    )
+
+
 class GradeCreate(BaseModel):
     assignment_id: uuid.UUID | None = None
     project_id: uuid.UUID | None = None
@@ -107,6 +131,14 @@ class GradeCreate(BaseModel):
     feedback: str | None = None
     rubric_scores_json: dict[str, Any] | None = None
     evidence_refs_json: list[Any] | dict[str, Any] | None = None
+    completed_at: datetime | None = Field(
+        None,
+        description="When the learner finished/submitted the work (timezone-aware).",
+    )
+    graded_at: datetime | None = Field(
+        None,
+        description="When the grade was recorded; defaults to request time if omitted.",
+    )
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -125,7 +157,24 @@ class GradeOut(BaseModel):
     rubric_scores_json: dict[str, Any] | None
     evidence_refs_json: list[Any] | dict[str, Any] | None
     metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
+    completed_at: datetime | None
+    graded_at: datetime | None
     created_at: datetime
+
+
+class GradeUpdate(BaseModel):
+    assignment_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
+    scored_by: str | None = None
+    score_numeric: float | None = None
+    score_max: float | None = None
+    letter: str | None = None
+    feedback: str | None = None
+    rubric_scores_json: dict[str, Any] | None = None
+    evidence_refs_json: list[Any] | dict[str, Any] | None = None
+    completed_at: datetime | None = None
+    graded_at: datetime | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class SkillObservationCreate(BaseModel):
@@ -142,7 +191,12 @@ class SkillObservationCreate(BaseModel):
 
 
 class DictationSessionDraftRequest(BaseModel):
-    target_daily_words: int = Field(10, ge=1, le=50)
+    target_daily_words: int = Field(
+        10,
+        ge=1,
+        le=50,
+        description="How many new words the AI should suggest (not reduced by current backlog).",
+    )
 
 
 class DictationSessionDraftResponse(BaseModel):
@@ -150,10 +204,18 @@ class DictationSessionDraftResponse(BaseModel):
     suggested_words: list[str]
     difficulty: int
     dictation_user_id: int
+    pool_size: int = Field(
+        0,
+        description="Count of dictionary words not yet assigned to this student (candidates for suggestions).",
+    )
 
 
 class DictationSessionCommitRequest(BaseModel):
     words: list[str]
+    due_at: datetime | None = Field(
+        None,
+        description="Core assignment deadline (timezone-aware ISO). Defaults to 7 days from commit time.",
+    )
 
 
 class DictationProfileOut(BaseModel):
@@ -168,6 +230,27 @@ class DictationSessionCommitResponse(BaseModel):
     assignment_id: uuid.UUID
     assigned_count: int
     message: str
+    due_at: datetime | None = None
+
+
+class DictationQueueSyncRequest(BaseModel):
+    due_at: datetime | None = Field(
+        None,
+        description="Due date for the suite assignment (defaults to 7 days from now).",
+    )
+    title: str | None = Field(
+        None, max_length=500, description="Override assignment title; default: Spelling words (dictation)."
+    )
+
+
+class DictationQueueSyncResponse(BaseModel):
+    """Mirrors the dictation practice queue (Postgres) into a suite `core.assignment` + items."""
+
+    dictation_user_id: int
+    assignment_id: uuid.UUID
+    item_count: int
+    message: str
+    due_at: datetime | None = None
 
 
 class SkillObservationOut(BaseModel):

@@ -6,14 +6,24 @@
   <title>Homeschool — Platform admin</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; margin: 0; padding: 24px; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1e293b; margin: 0; padding: 16px; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      h1 { font-size: 1.35rem; }
+    }
     h1 { margin: 0 0 8px; font-size: 1.5rem; }
     .sub { color: #64748b; margin-bottom: 24px; font-size: 0.95rem; }
     a.nav { color: #0d9488; }
-    .tabs { display: flex; gap: 4px; margin-bottom: 0; flex-wrap: wrap; }
+    .tabs {
+      display: flex; gap: 4px; margin-bottom: 0; flex-wrap: nowrap;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+    .tabs button { flex-shrink: 0; }
     .tabs button {
-      padding: 10px 18px; border: none; background: #e2e8f0; cursor: pointer;
-      border-radius: 8px 8px 0 0; font-size: 0.95rem;
+      padding: 12px 14px; border: none; background: #e2e8f0; cursor: pointer;
+      border-radius: 8px 8px 0 0; font-size: 0.9rem; min-height: 44px;
     }
     .tabs button.active { background: #fff; font-weight: 600; border-bottom: 2px solid #0d9488; }
     .panel {
@@ -53,21 +63,90 @@
     .lex-edit label { margin-top: 0; }
     .lex-edit input[type="number"] { width: 72px; max-width: none; }
     .lex-edit input[type="text"] { flex: 1; min-width: 180px; max-width: 100%; }
+
+    /* Assignments tab — mobile-first cards */
+    .assign-toolbar {
+      display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;
+      max-width: 100%;
+    }
+    @media (min-width: 560px) {
+      .assign-toolbar { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+      .assign-toolbar .field-grow { flex: 1; min-width: 180px; }
+    }
+    .assign-toolbar label { margin-top: 0; }
+    .assign-toolbar select, .assign-toolbar input { max-width: 100%; }
+    .btn-refresh { margin-top: 0; min-height: 44px; padding: 12px 18px; }
+    .assignment-card {
+      border: 1px solid #e2e8f0; border-radius: 12px; background: #fafafa;
+      margin-bottom: 12px; overflow: hidden; text-align: left;
+    }
+    .assignment-card summary {
+      list-style: none; cursor: pointer; padding: 14px 16px;
+      display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
+      justify-content: space-between; min-height: 48px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .assignment-card summary::-webkit-details-marker { display: none; }
+    .assignment-card summary::after { content: '▸'; color: #64748b; font-size: 0.85rem; margin-left: auto; }
+    .assignment-card[open] summary::after { content: '▾'; }
+    .assign-title { font-weight: 700; font-size: 1.05rem; flex: 1; min-width: 0; }
+    .assign-badge {
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 999px; background: #e0f2fe; color: #0369a1;
+    }
+    .assign-badge.draft { background: #f1f5f9; color: #475569; }
+    .assign-badge.assigned { background: #dbeafe; color: #1d4ed8; }
+    .assign-meta {
+      padding: 0 16px 12px; font-size: 0.88rem; color: #475569; line-height: 1.5;
+    }
+    .assign-form {
+      padding: 0 16px 16px; border-top: 1px solid #e2e8f0; background: #fff;
+      padding-top: 14px;
+    }
+    .assign-form label { margin-top: 10px; }
+    .assign-form label:first-child { margin-top: 0; }
+    .assign-form input[type="text"], .assign-form select, .assign-form textarea {
+      max-width: 100%; font-size: 16px;
+    }
+    .assign-form-row { display: grid; gap: 10px; }
+    @media (min-width: 480px) {
+      .assign-form-row.two { grid-template-columns: 1fr 1fr; }
+    }
+    .assign-actions { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+    @media (min-width: 420px) {
+      .assign-actions { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 12px; }
+      .btn-assign-save { flex: 2; margin-top: 0 !important; }
+      .btn-assign-delete { flex: 1; margin-top: 0 !important; }
+    }
+    .btn-assign-save {
+      width: 100%; margin-top: 14px; min-height: 48px; font-size: 1rem;
+      background: #0d9488; color: #fff; border: none; border-radius: 10px;
+      font-weight: 600; cursor: pointer;
+    }
+    .btn-assign-delete {
+      width: 100%; min-height: 48px; font-size: 1rem;
+      background: #fef2f2; color: #b91c1c; border: 2px solid #fecaca; border-radius: 10px;
+      font-weight: 600; cursor: pointer;
+    }
+    .assign-empty { color: #64748b; padding: 20px; text-align: center; }
   </style>
 </head>
 <body>
   <h1>Platform admin</h1>
   <p class="sub">
-    Students (Postgres), AI spelling lists, dictation progress, and master dictionary.
+    Students (Postgres), assignments, AI spelling lists, dictation progress, and master dictionary.
     <a class="nav" href="/">← Portal</a>
     · <a class="nav" href="/apps/dictation/ui/">Student dictation</a>
     · <a class="nav" href="/apps/dictation/ui/review.html">Review words</a>
+    · <a class="nav" href="/admin/#assignments">Assignments</a>
   </p>
 
   <div class="tabs">
     <button type="button" class="active" data-tab="students">Students</button>
+    <button type="button" data-tab="assignments">Assignments</button>
     <button type="button" data-tab="spelling">Spelling words (AI)</button>
     <button type="button" data-tab="dictation-progress">Dictation progress</button>
+    <button type="button" data-tab="dictation-audio">Dictation audio</button>
     <button type="button" data-tab="dictionary">Dictionary</button>
   </div>
 
@@ -91,11 +170,15 @@
 
   <div id="spelling" class="panel">
     <h2 style="margin-top:0;font-size:1.1rem">AI word suggestions → dictation</h2>
-    <p class="hint">Uses Ollama. Words are saved to dictation and recorded as a core assignment.</p>
+    <p class="hint">Ollama picks <strong>only from words already in the master dictionary</strong> (Dictionary tab / import). Add words to Postgres first; the AI chooses among words this student is not already assigned. Words must stay in the dictionary on approve—unknown words are rejected.</p>
     <label for="spell-student">Student</label>
     <select id="spell-student"><option value="">Loading…</option></select>
-    <label for="spell-count">Target words for today’s lesson (total desired)</label>
+    <label for="spell-count">How many new words to suggest (AI)</label>
     <input id="spell-count" type="number" min="1" max="50" value="10" />
+    <p class="hint" style="margin-top:4px">Does not depend on how many words are already due for practice—those are listed separately after you click Ask AI.</p>
+    <label for="spell-assign-due">Assignment due (for the core spelling assignment record)</label>
+    <input id="spell-assign-due" type="datetime-local" style="font-size:16px;max-width:100%" />
+    <p class="hint" style="margin-top:4px">Defaults to end of day, 7 days from now. Change before approving — sent as <code>due_at</code> on commit.</p>
     <button type="button" class="btn btn-ai" id="btn-draft" onclick="draftSpelling()">Ask AI for suggestions</button>
     <div id="draft-box" class="draft-box">
       <p id="draft-status" style="font-weight:600;margin-top:0"></p>
@@ -105,6 +188,31 @@
     </div>
     <p id="spell-err" class="err" style="display:none"></p>
     <p id="spell-ok" class="ok" style="display:none"></p>
+  </div>
+
+  <div id="dictation-audio" class="panel">
+    <h2 style="margin-top:0;font-size:1.1rem">Dictation audio (TTS)</h2>
+    <p class="hint">VCTK voice and playback speed for the <strong>student</strong> dictation app. Lower speed = slower, clearer (same scale as <code>DICTATION_TTS_*</code> in Docker: 0.25–1.0). <strong>Save</strong> applies in memory until you reset or restart the app.</p>
+    <p id="dict-audio-err" class="err" style="display:none"></p>
+    <p id="dict-audio-ok" class="ok" style="display:none"></p>
+    <label for="dict-tts-voice">Voice (speaker id)</label>
+    <select id="dict-tts-voice" style="font-size:16px;max-width:100%"></select>
+    <label for="dict-tts-sent">Sentence speed</label>
+    <input id="dict-tts-sent" type="number" min="0.25" max="1" step="0.01" value="0.58" style="max-width:160px" />
+    <p class="hint" style="margin-top:0">1.0 = no slowdown; 0.58 ≈ default.</p>
+    <label for="dict-tts-word">Word speed</label>
+    <input id="dict-tts-word" type="number" min="0.25" max="1" step="0.01" value="0.65" style="max-width:160px" />
+    <p class="hint" style="margin-top:0">Often slightly faster than the sentence.</p>
+    <p class="hint" id="dict-tts-env-hint" style="margin-top:8px">Env defaults: —</p>
+    <p class="hint" id="dict-tts-audio-hint" style="display:none">Preview uses a fixed short phrase; it does not change a student&rsquo;s in-progress word.</p>
+    <audio id="dict-tts-audio" controls preload="none" style="width:100%;max-width:100%;margin-top:12px"></audio>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px">
+      <button type="button" class="btn btn-secondary" onclick="playTtsSample('sentence')">▶ Play sentence sample</button>
+      <button type="button" class="btn btn-secondary" onclick="playTtsSample('word')">▶ Play word sample</button>
+      <button type="button" class="btn btn-primary" onclick="saveTtsSettings()">Save settings</button>
+      <button type="button" class="btn btn-secondary" onclick="loadTtsSettingsPanel()">Reload</button>
+      <button type="button" class="btn btn-secondary" onclick="resetTtsToEnv()">Use Docker env only</button>
+    </div>
   </div>
 
   <div id="dictation-progress" class="panel panel-wide">
@@ -119,6 +227,28 @@
     </div>
   </div>
 
+  <div id="assignments" class="panel panel-wide">
+    <h2 style="margin-top:0;font-size:1.1rem">Assignments</h2>
+    <p class="hint">Suite-level work from Postgres (<code>core.assignments</code>). <strong>Subject</strong> is the app slug (e.g. <code>dictation</code>). The <strong>dictation student app</strong> uses a separate practice queue; if the app shows words but this list is empty, use <strong>Sync dictation → assignment</strong> for that student. Dates use your device timezone.</p>
+    <div class="assign-toolbar">
+      <div class="field-grow">
+        <label for="assign-student">Student</label>
+        <select id="assign-student" onchange="loadAssignmentsPanel()"><option value="">Loading…</option></select>
+      </div>
+      <div class="field-grow">
+        <label for="assign-subject">Subject</label>
+        <select id="assign-subject">
+          <option value="">All subjects</option>
+          <option value="__none__">(No subject)</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-primary btn-refresh" onclick="loadAssignmentsPanel()">Refresh list</button>
+      <button type="button" class="btn btn-secondary btn-refresh" id="btn-sync-dictation-assign" title="Create or update a suite assignment from the dictation word queue" onclick="syncDictationToAssignment()">Sync dictation → assignment</button>
+    </div>
+    <p id="assign-err" class="err" style="display:none"></p>
+    <div id="assign-list"></div>
+  </div>
+
   <div id="dictionary" class="panel panel-wide">
     <h2 style="margin-top:0;font-size:1.1rem">Master dictionary</h2>
     <p class="hint">Each card is one <code>core.lexemes</code> row: identifiers, definition, pronunciation / etymology / tips when present, full <code>extensions</code> JSON, and quick edits for level and definition. Add words via <strong>Spelling words (AI)</strong> or enrich with <code>scripts/import_school_spelling_words.py</code> (see docs).</p>
@@ -131,16 +261,53 @@
     let _studentNames = {};
     let _dictationChart = null;
 
-    function activateTab(tabId) {
-      document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
-      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === tabId));
-      if (tabId === 'dictionary') loadDictionaryWords();
-      if (tabId === 'dictation-progress') loadDictationProfilesForChart({});
+    /** Tab ids in DOM order; single source of truth for hash + validation. */
+    const ADMIN_TAB_IDS = [
+      'students', 'assignments', 'spelling', 'dictation-progress', 'dictation-audio', 'dictionary'
+    ];
+
+    function getTabFromHash() {
+      const h = (location.hash || '').replace(/^#/, '');
+      return ADMIN_TAB_IDS.includes(h) ? h : 'students';
     }
 
-    document.querySelectorAll('.tabs button').forEach(btn => {
-      btn.addEventListener('click', () => activateTab(btn.dataset.tab));
-    });
+    function activateTab(tabId) {
+      const id = ADMIN_TAB_IDS.includes(tabId) ? tabId : 'students';
+      document.querySelectorAll('.tabs button').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-tab') === id);
+      });
+      document.querySelectorAll('.panel').forEach(p => {
+        p.classList.toggle('active', p.id === id);
+      });
+      // Optional async loaders — don't let one failure break tab switching
+      (async function loadTabData() {
+        try {
+          if (id === 'dictionary') await loadDictionaryWords();
+          if (id === 'dictation-progress') await loadDictationProfilesForChart({});
+          if (id === 'assignments') await loadAssignmentsPanel();
+          if (id === 'spelling') ensureSpellAssignDueDefault();
+          if (id === 'dictation-audio') await loadTtsSettingsPanel();
+        } catch (e) {
+          console.error('Tab data load error:', e);
+        }
+      })();
+    }
+
+    const tabsBar = document.querySelector('.tabs');
+    if (tabsBar) {
+      tabsBar.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button[data-tab]');
+        if (!btn) return;
+        const tid = btn.getAttribute('data-tab');
+        if (!tid || !ADMIN_TAB_IDS.includes(tid)) return;
+        ev.preventDefault();
+        if (location.hash === '#' + tid) {
+          activateTab(tid);
+        } else {
+          location.hash = tid;
+        }
+      });
+    }
 
     function escapeHtml(t) {
       const d = document.createElement('div');
@@ -164,13 +331,16 @@
         _studentNames = {};
         const tbody = document.getElementById('student-rows');
         const sel = document.getElementById('spell-student');
+        const assignSel = document.getElementById('assign-student');
         tbody.innerHTML = '';
         sel.innerHTML = '';
         if (!list.length) {
           tbody.innerHTML = '<tr><td colspan="4">No students yet. Create one above.</td></tr>';
           sel.innerHTML = '<option value="">No students</option>';
+          if (assignSel) assignSel.innerHTML = '<option value="">No students</option>';
           return;
         }
+        if (assignSel) assignSel.innerHTML = '';
         for (const s of list) {
           _studentNames[s.id] = s.display_name;
           const meta = s.metadata || {};
@@ -184,6 +354,9 @@
             </td>
           </tr>`;
           sel.innerHTML += `<option value="${escapeAttr(s.id)}">${escapeHtml(s.display_name)}</option>`;
+          if (assignSel) {
+            assignSel.innerHTML += `<option value="${escapeAttr(s.id)}">${escapeHtml(s.display_name)}</option>`;
+          }
         }
       } catch (e) {
         document.getElementById('student-err').textContent = 'Could not load students. Is Postgres running and DATABASE_URL set? ' + e.message;
@@ -257,9 +430,15 @@
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         document.getElementById('draft-box').style.display = 'block';
-        document.getElementById('draft-status').textContent =
-          `${data.due_count} words due today. Suggested ${data.suggested_words.length} new words (skill ${data.difficulty}).`;
-        document.getElementById('draft-words').value = data.suggested_words.join(', ');
+        const poolN = (typeof data.pool_size === 'number') ? data.pool_size : '—';
+        if (!data.suggested_words || !data.suggested_words.length) {
+          document.getElementById('draft-status').textContent =
+            `Unassigned words available in the dictionary: ${poolN}. No suggestions (add more words to the dictionary or check that the student is not already assigned to every word).`;
+        } else {
+          document.getElementById('draft-status').textContent =
+            `Pool: ${poolN} words in the dictionary not yet assigned to this student. ${data.due_count} word(s) already due (backlog). Suggested ${data.suggested_words.length} word(s) from the dictionary (skill ${data.difficulty}). Edit, then approve.`;
+        }
+        document.getElementById('draft-words').value = (data.suggested_words || []).join(', ');
       } catch (e) {
         document.getElementById('spell-err').textContent = String(e.message || e);
         document.getElementById('spell-err').style.display = 'block';
@@ -275,10 +454,17 @@
       const raw = document.getElementById('draft-words').value;
       const words = raw.split(',').map(w => w.trim()).filter(Boolean);
       if (!sid || !words.length) { alert('Select a student and enter words'); return; }
+      ensureSpellAssignDueDefault();
+      const dueEl = document.getElementById('spell-assign-due');
+      let due_at = null;
+      if (dueEl && dueEl.value) {
+        const dt = new Date(dueEl.value);
+        if (!Number.isNaN(dt.getTime())) due_at = dt.toISOString();
+      }
       const res = await fetch(`${CORE}/students/${sid}/dictation-session/commit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words })
+        body: JSON.stringify({ words, due_at })
       });
       if (!res.ok) {
         document.getElementById('spell-err').textContent = await res.text();
@@ -286,8 +472,9 @@
         return;
       }
       const data = await res.json();
+      const dueLine = data.due_at ? formatLocalDateTime(data.due_at) : '';
       document.getElementById('spell-ok').textContent =
-        `${data.message} Core assignment ${data.assignment_id}.`;
+        `${data.message} Core assignment ${data.assignment_id}.${dueLine ? ' Due: ' + dueLine + '.' : ''}`;
       document.getElementById('spell-ok').style.display = 'block';
       document.getElementById('draft-box').style.display = 'none';
     }
@@ -389,10 +576,13 @@
       const def = w.definition == null ? '' : String(w.definition);
       const lvl = w.difficulty_level != null ? w.difficulty_level : 1;
       let jsonBlock = '';
+      let jsonRaw = '';
       try {
-        jsonBlock = escapeHtml(JSON.stringify(ext, null, 2));
+        jsonRaw = JSON.stringify(ext, null, 2);
+        jsonBlock = escapeHtml(jsonRaw);
       } catch (e) {
         jsonBlock = escapeHtml(String(ext));
+        jsonRaw = String(ext);
       }
       const prBlock = pr
         ? `<div class="lex-section"><strong>Pronunciation</strong><pre>${escapeHtml(pr)}</pre></div>`
@@ -400,6 +590,7 @@
       const etBlock = et
         ? `<div class="lex-section"><strong>Etymology &amp; word history</strong><pre>${escapeHtml(et)}</pre></div>`
         : '<div class="lex-section"><strong>Etymology &amp; word history</strong><p style="margin:0;color:#94a3b8;font-size:0.9rem">None stored.</p></div>';
+      const disp = (w.display_word == null) ? '' : String(w.display_word);
       return `<article class="lex-card">
         <h3>${title}</h3>
         <div class="lex-meta">Canonical: <code>${canon}</code>${display ? ' · Display: <code>' + display + '</code>' : ''} · Locale: <code>${locale}</code><br>Lexeme id: <code>${lid}</code> · Difficulty: <strong>${escapeHtml(String(lvl))}</strong></div>
@@ -407,13 +598,133 @@
         ${prBlock}
         ${etBlock}
         <div class="lex-section"><strong>Spelling tips</strong>${tricksHtml}</div>
-        <div class="lex-section"><strong>Full extensions (JSON)</strong><pre>${jsonBlock}</pre></div>
-        <div class="lex-edit">
-          <div><label for="lvl-${wid}">Level (1–10)</label><input type="number" min="1" max="10" id="lvl-${wid}" value="${escapeAttr(lvl)}" /></div>
-          <div style="flex:1;min-width:200px"><label for="def-${wid}">Definition (edit)</label><input type="text" id="def-${wid}" value="${escapeAttr(def)}" /></div>
-          <button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'))">Save</button>
+        <div class="lex-section"><strong>Full extensions (read-only)</strong><pre>${jsonBlock}</pre></div>
+        <div class="lex-edit" style="flex-direction:column;align-items:stretch;gap:12px">
+          <div class="lex-edit" style="margin:0;flex-wrap:wrap">
+            <div><label for="disp-${wid}">Display as</label><input type="text" id="disp-${wid}" value="${escapeAttr(disp)}" placeholder="e.g. McDonald" style="min-width:140px" /></div>
+            <div><label for="lvl-${wid}">Level (1–10)</label><input type="number" min="1" max="10" id="lvl-${wid}" value="${escapeAttr(lvl)}" /></div>
+            <div style="flex:1;min-width:200px"><label for="def-${wid}">Definition (edit)</label><input type="text" id="def-${wid}" value="${escapeAttr(def)}" /></div>
+          </div>
+          <div>
+            <label for="ext-${wid}">Edit extensions (JSON) — merge on save: pronunciation, etymology, spelling_tricks, oxford_learners_links, etc.</label>
+            <textarea id="ext-${wid}" style="min-height:160px;max-width:100%;font-family:ui-monospace,monospace;font-size:0.88rem" spellcheck="false">${escapeHtml(jsonRaw)}</textarea>
+          </div>
+          <button type="button" class="btn btn-save" data-lexeme-id="${escapeAttr(w.id)}" data-lexeme-wid="${escapeAttr(wid)}" style="align-self:flex-start" onclick="saveDictionaryWord(this.getAttribute('data-lexeme-id'), this.getAttribute('data-lexeme-wid'))">Save</button>
         </div>
       </article>`;
+    }
+
+    async function playTtsSample(sample) {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      const voice = document.getElementById('dict-tts-voice').value;
+      const sent = parseFloat(document.getElementById('dict-tts-sent').value);
+      const word = parseFloat(document.getElementById('dict-tts-word').value);
+      if (!voice) { document.getElementById('dict-audio-err').textContent = 'Select a voice first.'; document.getElementById('dict-audio-err').style.display = 'block'; return; }
+      try {
+        const res = await fetch(`${DICTATION}/tts-preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speaker: voice, sentence_tempo: sent, word_tempo: word, sample: sample || 'sentence' })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const j = await res.json();
+        const a = document.getElementById('dict-tts-audio');
+        document.getElementById('dict-tts-audio-hint').style.display = 'block';
+        a.src = `${DICTATION}/audio/tts-preview?t=${Date.now()}`;
+        a.play().catch(() => {});
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
+    }
+
+    async function loadTtsSettingsPanel() {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      document.getElementById('dict-audio-ok').style.display = 'none';
+      const envHint = document.getElementById('dict-tts-env-hint');
+      const voiceSel = document.getElementById('dict-tts-voice');
+      if (!voiceSel) return;
+      try {
+        const [sRes, tRes] = await Promise.all([
+          fetch(`${DICTATION}/tts-voices`),
+          fetch(`${DICTATION}/tts-settings`)
+        ]);
+        if (!sRes.ok) throw new Error(await sRes.text());
+        if (!tRes.ok) throw new Error(await tRes.text());
+        const { speakers } = await sRes.json();
+        const t = await tRes.json();
+        const eff = t.effective || {};
+        const env = t.env || {};
+        const envParts = [];
+        if (env.speaker != null) envParts.push('voice ' + env.speaker);
+        if (env.sentence_tempo != null) envParts.push('sentence ' + env.sentence_tempo);
+        if (env.word_tempo != null) envParts.push('word ' + env.word_tempo);
+        if (envHint) {
+          envHint.textContent = envParts.length
+            ? 'Env defaults: ' + envParts.join(', ') + ' (from DICTATION_TTS_* in Docker / host).'
+            : 'Env defaults: (not reported — check container env).';
+        }
+        const list = (speakers && speakers.length) ? speakers : ['p225'];
+        const cur = (eff.speaker || env.speaker || 'p225').toString();
+        voiceSel.innerHTML = list.map(s => {
+          const id = String(s);
+          return `<option value="${escapeAttr(id)}"${id === cur ? ' selected' : ''}>${escapeHtml(id)}</option>`;
+        }).join('');
+        if (cur && ![...voiceSel.options].some(o => o.value === cur)) {
+          voiceSel.innerHTML = `<option value="${escapeAttr(cur)}" selected>${escapeHtml(cur)}</option>` + voiceSel.innerHTML;
+        }
+        document.getElementById('dict-tts-sent').value = String(eff.sentence_tempo ?? env.sentence_tempo ?? 0.58);
+        document.getElementById('dict-tts-word').value = String(eff.word_tempo ?? env.word_tempo ?? 0.65);
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
+    }
+
+    async function saveTtsSettings() {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      document.getElementById('dict-audio-ok').style.display = 'none';
+      const speaker = document.getElementById('dict-tts-voice').value;
+      const sentence_tempo = parseFloat(document.getElementById('dict-tts-sent').value);
+      const word_tempo = parseFloat(document.getElementById('dict-tts-word').value);
+      if (Number.isNaN(sentence_tempo) || Number.isNaN(word_tempo)) {
+        document.getElementById('dict-audio-err').textContent = 'Enter valid numbers for speeds (0.25–1.0).';
+        document.getElementById('dict-audio-err').style.display = 'block';
+        return;
+      }
+      try {
+        const res = await fetch(`${DICTATION}/tts-settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speaker, sentence_tempo, word_tempo, use_env_defaults: false })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        document.getElementById('dict-audio-ok').textContent = 'Saved. New practice audio uses these values.';
+        document.getElementById('dict-audio-ok').style.display = 'block';
+        await loadTtsSettingsPanel();
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
+    }
+
+    async function resetTtsToEnv() {
+      document.getElementById('dict-audio-err').style.display = 'none';
+      document.getElementById('dict-audio-ok').style.display = 'none';
+      try {
+        const res = await fetch(`${DICTATION}/tts-settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ use_env_defaults: true })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        document.getElementById('dict-audio-ok').textContent = 'Reset to environment defaults.';
+        document.getElementById('dict-audio-ok').style.display = 'block';
+        await loadTtsSettingsPanel();
+      } catch (e) {
+        document.getElementById('dict-audio-err').textContent = String(e.message || e);
+        document.getElementById('dict-audio-err').style.display = 'block';
+      }
     }
 
     async function loadDictionaryWords() {
@@ -433,22 +744,308 @@
       }
     }
 
-    async function saveDictionaryWord(id) {
-      const level = document.getElementById(`lvl-${id}`).value;
-      const def = document.getElementById(`def-${id}`).value;
+    async function saveDictionaryWord(id, wid) {
+      const wkey = wid || String(id).replace(/[^a-zA-Z0-9-]/g, '');
+      const level = document.getElementById(`lvl-${wkey}`).value;
+      const def = document.getElementById(`def-${wkey}`).value;
+      const displayWord = document.getElementById(`disp-${wkey}`) ? document.getElementById(`disp-${wkey}`).value : null;
+      let extPatch = null;
+      const extEl = document.getElementById(`ext-${wkey}`);
+      if (extEl) {
+        const raw = extEl.value.trim();
+        if (raw) {
+          try {
+            extPatch = JSON.parse(raw);
+            if (extPatch === null || typeof extPatch !== 'object' || Array.isArray(extPatch)) {
+              alert('Extensions must be a JSON object.');
+              return;
+            }
+          } catch (e) {
+            alert('Invalid JSON in extensions: ' + (e.message || e));
+            return;
+          }
+        }
+      }
+      const body = { difficulty_level: parseInt(level, 10) || 1, definition: def, display_word: displayWord || null, extensions: extPatch };
       const res = await fetch(`${DICTATION}/words/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ difficulty_level: parseInt(level, 10) || 1, definition: def })
+        body: JSON.stringify(body)
       });
       if (!res.ok) { alert(await res.text()); return; }
       alert('Saved.');
+      loadDictionaryWords();
     }
 
+    function formatLocalDateTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso);
+      return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    function toDatetimeLocalValue(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      const y = d.getFullYear();
+      const m = pad(d.getMonth() + 1);
+      const day = pad(d.getDate());
+      const h = pad(d.getHours());
+      const min = pad(d.getMinutes());
+      return `${y}-${m}-${day}T${h}:${min}`;
+    }
+
+    function ensureSpellAssignDueDefault() {
+      const el = document.getElementById('spell-assign-due');
+      if (!el || el.value) return;
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      d.setHours(23, 59, 0, 0);
+      const pad = (n) => String(n).padStart(2, '0');
+      el.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function slugLabel(slug) {
+      if (slug == null || slug === '') return '(No subject)';
+      if (slug === 'dictation') return 'Dictation';
+      return slug;
+    }
+
+    let _lastAssignmentsRaw = [];
+
+    function rebuildAssignSubjectFilter(assignments) {
+      const subSel = document.getElementById('assign-subject');
+      if (!subSel) return;
+      const prev = subSel.value;
+      const slugs = [...new Set(assignments.map(a => a.app_slug || '').filter(Boolean))].sort();
+      subSel.innerHTML = '<option value="">All subjects</option><option value="__none__">(No subject)</option>';
+      slugs.forEach(s => {
+        subSel.innerHTML += `<option value="${escapeAttr(s)}">${escapeHtml(slugLabel(s))}</option>`;
+      });
+      if ([...subSel.options].some(o => o.value === prev)) subSel.value = prev;
+    }
+
+    function filterAssignmentsForDisplay(assignments) {
+      const f = document.getElementById('assign-subject');
+      const v = f ? f.value : '';
+      if (!v) return assignments;
+      if (v === '__none__') return assignments.filter(a => !a.app_slug);
+      return assignments.filter(a => (a.app_slug || '') === v);
+    }
+
+    function assignmentSpellingWords(a) {
+      const items = Array.isArray(a.items) ? a.items : [];
+      const words = items
+        .filter(it => it && it.item_type === 'spelling_word' && it.payload_json && it.payload_json.word)
+        .sort((x, y) => (x.sequence || 0) - (y.sequence || 0))
+        .map(it => String(it.payload_json.word).trim().toLowerCase())
+        .filter(Boolean);
+      return [...new Set(words)];
+    }
+
+    function renderAssignmentCard(a, studentId) {
+      const aid = escapeAttr(a.id);
+      const slug = a.app_slug || '';
+      const subjectBadge = escapeHtml(slugLabel(slug));
+      const st = (a.status || 'draft').toLowerCase();
+      const badgeClass = st === 'assigned' ? 'assigned' : 'draft';
+      const title = escapeHtml(a.title || '(Untitled)');
+      const instr = (a.instructions || '').trim();
+      const avail = formatLocalDateTime(a.available_from);
+      const due = formatLocalDateTime(a.due_at);
+      const wid = String(a.id).replace(/[^a-zA-Z0-9-]/g, '');
+      const words = assignmentSpellingWords(a);
+      const wordsBlock = words.length
+        ? `<div class="assign-words" style="margin-top:8px;font-size:0.92rem"><strong>Assigned words</strong> (${words.length}):<br><span style="word-break:break-word">${words.map(w => escapeHtml(w)).join(', ')}</span></div>`
+        : ((a.app_slug || '') === 'dictation'
+          ? '<p class="hint" style="margin:8px 0 0 0">No spelling words on this row yet (core <code>assignment_items</code> empty).</p>'
+          : '');
+      return `<details class="assignment-card" id="assign-card-${wid}">
+        <summary>
+          <span class="assign-title">${title}</span>
+          <span class="assign-badge ${badgeClass}">${escapeHtml(st)}</span>
+          <span class="assign-badge">${subjectBadge}</span>
+        </summary>
+        <div class="assign-meta">
+          <strong>Opens:</strong> ${escapeHtml(avail)} · <strong>Due:</strong> ${escapeHtml(due)}
+          ${instr ? '<br><span style="margin-top:6px;display:inline-block">' + escapeHtml(instr.length > 200 ? instr.slice(0, 200) + '…' : instr) + '</span>' : ''}
+          ${wordsBlock}
+        </div>
+        <div class="assign-form">
+          <label for="atitle-${wid}">Title</label>
+          <input type="text" id="atitle-${wid}" value="${escapeAttr(a.title || '')}" autocomplete="off" />
+          <div class="assign-form-row two">
+            <div>
+              <label for="astatus-${wid}">Status</label>
+              <select id="astatus-${wid}">
+                <option value="draft" ${st === 'draft' ? 'selected' : ''}>draft</option>
+                <option value="assigned" ${st === 'assigned' ? 'selected' : ''}>assigned</option>
+                <option value="in_progress" ${st === 'in_progress' ? 'selected' : ''}>in_progress</option>
+                <option value="completed" ${st === 'completed' ? 'selected' : ''}>completed</option>
+                <option value="cancelled" ${st === 'cancelled' ? 'selected' : ''}>cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label for="aslug-${wid}">Subject (app slug)</label>
+              <input type="text" id="aslug-${wid}" value="${escapeAttr(slug)}" placeholder="dictation" autocomplete="off" />
+            </div>
+          </div>
+          <div class="assign-form-row two">
+            <div>
+              <label for="aavail-${wid}">Available from</label>
+              <input type="datetime-local" id="aavail-${wid}" value="${escapeAttr(toDatetimeLocalValue(a.available_from))}" />
+            </div>
+            <div>
+              <label for="adue-${wid}">Due</label>
+              <input type="datetime-local" id="adue-${wid}" value="${escapeAttr(toDatetimeLocalValue(a.due_at))}" />
+            </div>
+          </div>
+          <label for="ainstr-${wid}">Instructions</label>
+          <textarea id="ainstr-${wid}" rows="3">${escapeHtml(instr)}</textarea>
+          <div class="assign-actions">
+            <button type="button" class="btn-assign-save" data-student-id="${escapeAttr(studentId)}" data-assignment-id="${aid}" onclick="saveAssignmentFromBtn(this)">Save changes</button>
+            <button type="button" class="btn-assign-delete" data-student-id="${escapeAttr(studentId)}" data-assignment-id="${aid}" data-assignment-title="${escapeAttr(a.title || '')}" onclick="deleteAssignmentFromBtn(this)">Delete</button>
+          </div>
+        </div>
+      </details>`;
+    }
+
+    async function syncDictationToAssignment() {
+      const sid = document.getElementById('assign-student').value;
+      if (!sid) { alert('Select a student first.'); return; }
+      const btn = document.getElementById('btn-sync-dictation-assign');
+      if (btn) { btn.disabled = true; }
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/dictation-session/sync-assignment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || res.status);
+        }
+        const data = await res.json();
+        alert(data.message + (data.due_at ? '\nDue: ' + formatLocalDateTime(data.due_at) : ''));
+        await loadAssignmentsPanel();
+      } catch (e) {
+        alert(String(e.message || e));
+      }
+      if (btn) { btn.disabled = false; }
+    }
+
+    async function saveAssignmentFromBtn(btn) {
+      const sid = btn.getAttribute('data-student-id');
+      const aid = btn.getAttribute('data-assignment-id');
+      const wid = aid.replace(/[^a-zA-Z0-9-]/g, '');
+      const title = document.getElementById(`atitle-${wid}`).value.trim();
+      if (!title) { alert('Title is required'); return; }
+      const status = document.getElementById(`astatus-${wid}`).value;
+      const appSlugRaw = document.getElementById(`aslug-${wid}`).value.trim();
+      const app_slug = appSlugRaw === '' ? null : appSlugRaw;
+      const availEl = document.getElementById(`aavail-${wid}`).value;
+      const dueEl = document.getElementById(`adue-${wid}`).value;
+      const available_from = availEl ? new Date(availEl).toISOString() : null;
+      const due_at = dueEl ? new Date(dueEl).toISOString() : null;
+      const instructions = document.getElementById(`ainstr-${wid}`).value.trim() || null;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/assignments/${aid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            status,
+            app_slug,
+            available_from,
+            due_at,
+            instructions
+          })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await loadAssignmentsPanel(true);
+      } catch (e) {
+        alert('Save failed: ' + (e.message || e));
+      }
+      btn.disabled = false;
+    }
+
+    async function deleteAssignmentFromBtn(btn) {
+      const sid = btn.getAttribute('data-student-id');
+      const aid = btn.getAttribute('data-assignment-id');
+      const t = btn.getAttribute('data-assignment-title') || 'this assignment';
+      if (!confirm(`Delete "${t}"? This cannot be undone. Assignment items are removed; grades keep a record but lose the link.`)) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/assignments/${aid}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) {
+          const txt = await res.text();
+          throw new Error(txt || res.status);
+        }
+        await loadAssignmentsPanel(true);
+      } catch (e) {
+        alert('Delete failed: ' + (e.message || e));
+      }
+      btn.disabled = false;
+    }
+
+    async function loadAssignmentsPanel(skipSubjectRebuild) {
+      const err = document.getElementById('assign-err');
+      const list = document.getElementById('assign-list');
+      const sid = document.getElementById('assign-student').value;
+      err.style.display = 'none';
+      if (!sid) {
+        list.innerHTML = '<p class="assign-empty">Select a student.</p>';
+        return;
+      }
+      list.innerHTML = '<p class="hint">Loading…</p>';
+      try {
+        const res = await fetch(`${CORE}/students/${sid}/assignments`);
+        if (!res.ok) throw new Error(await res.text());
+        const raw = await res.json();
+        _lastAssignmentsRaw = raw;
+        if (!skipSubjectRebuild) rebuildAssignSubjectFilter(raw);
+        const filtered = filterAssignmentsForDisplay(raw);
+        if (!filtered.length) {
+          list.innerHTML = '<p class="assign-empty">No assignments for this filter.</p>';
+          return;
+        }
+        filtered.sort((a, b) => {
+          const da = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+          const db = b.due_at ? new Date(b.due_at).getTime() : Infinity;
+          return da - db;
+        });
+        list.innerHTML = filtered.map(a => renderAssignmentCard(a, sid)).join('');
+      } catch (e) {
+        err.textContent = String(e.message || e);
+        err.style.display = 'block';
+        list.innerHTML = '';
+      }
+    }
+
+    document.getElementById('assign-subject').addEventListener('change', () => {
+      if (!Array.isArray(_lastAssignmentsRaw) || !_lastAssignmentsRaw.length) return;
+      const sid = document.getElementById('assign-student').value;
+      if (!sid) return;
+      const filtered = filterAssignmentsForDisplay(_lastAssignmentsRaw);
+      const list = document.getElementById('assign-list');
+      if (!filtered.length) {
+        list.innerHTML = '<p class="assign-empty">No assignments for this filter.</p>';
+        return;
+      }
+      filtered.sort((a, b) => {
+        const da = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+        const db = b.due_at ? new Date(b.due_at).getTime() : Infinity;
+        return da - db;
+      });
+      list.innerHTML = filtered.map(a => renderAssignmentCard(a, sid)).join('');
+    });
+
     function applyHashTab() {
-      const h = (location.hash || '').replace(/^#/, '');
-      const valid = ['students', 'spelling', 'dictation-progress', 'dictionary'];
-      if (valid.includes(h)) activateTab(h);
+      const h = getTabFromHash();
+      activateTab(h);
     }
 
     window.addEventListener('hashchange', applyHashTab);

@@ -14,10 +14,10 @@ grow with multiple apps; the first integrated app will be **Dictation**.
 After you start the stack, open **http://localhost:4500/** for a landing page
 that links to each app and to the shared API documentation (`/docs`).
 
-- **Platform admin** (students, AI word planner, dictation progress chart, master dictionary
-  summaries + level/definition edit) — **`http://localhost:4500/admin/`** (or **`http://localhost:4500/admin`**
-  — redirects to the trailing slash). Deep links: `#students`, `#spelling`, `#dictation-progress`,
-  `#dictionary`. Served from `app/static/admin/index.html`. Requires Postgres: if the page loads
+- **Platform admin** (students, **Assignments** by student and subject, AI word planner, dictation
+  progress chart, master dictionary summaries + level/definition edit) — **`http://localhost:4500/admin/`**
+  (or **`http://localhost:4500/admin`** — redirects to the trailing slash). Deep links: `#students`,
+  `#assignments`, `#spelling`, `#dictation-progress`, `#dictation-audio`, `#dictionary`. Served from `app/static/admin/index.html`. Requires Postgres: if the page loads
   but API calls fail, check **`DATABASE_URL`** and `docker compose ps` (Postgres must be healthy).
 - **Legacy URL** `/apps/dictation/ui/admin.html` redirects to **`/admin/`**.
 - **Dictation** — student UI at **http://localhost:4500/apps/dictation/ui/**. REST API under **`/apps/dictation`**;
@@ -45,10 +45,13 @@ schema is always present.
   **skill_observations** (time-series skill signals for humans or AI).
 - **HTTP API**: under **`/core`** (see **`/docs`**). Examples:
   - `GET /core/students`, `POST /core/students`
-  - `GET /core/students/{id}/assignments`, `POST .../assignments`
+  - `GET /core/students/{id}/assignments` — each assignment may include **`items`** (tall `assignment_items`, e.g. `spelling_word` + `payload_json.word` for dictation)
   - `POST .../assignments/{id}/items` — agent-friendly steps (`item_type` +
     `payload_json`)
-  - `GET/POST .../grades`, `GET/POST .../skills`
+  - `GET/POST .../grades`, `PATCH .../grades/{grade_id}`, `GET/POST .../skills`
+  - **`POST .../dictation-session/commit`** assigns spelling words from admin; optional JSON **`due_at`** (omit for **7 days from commit**). Response echoes the effective **`due_at`**.
+  - **`POST .../dictation-session/sync-assignment`** (optional **`due_at`**, optional **`title`**) creates or updates a single **`dictation`** suite assignment and **`items`**, listing **all** words currently in that student’s **`core.dictation_assignments`** practice queue. Use this when the dictation app shows words but **Assignments** is empty (or out of date).
+  - Assignments support **`available_from`**, **`due_at`**, and `GET .../assignments?active=true`; **`PATCH .../assignments/{id}`** updates schedule fields; **`DELETE .../assignments/{id}`** removes the row (items cascade; grades’ `assignment_id` is set null).
 
 Use **`metadata`** JSON on rows for extensibility; use **`rubric_json`** /
 **`rubric_scores_json`** for structured AI or human scoring later.
@@ -64,9 +67,18 @@ alembic upgrade head
 
 ### Words and dictionary
 
-- **Operator UI:** `/admin/` → **Dictionary** tab — full per-word summary (definition, pronunciation, etymology, spelling tips, full `extensions` JSON) plus inline edit of level and definition (Postgres `core.lexemes`). Bulk CSV remains available via **`POST /apps/dictation/words/bulk-upload`** for scripts if needed.
+- **Operator UI:** `/admin/` → **Dictionary** tab — per-word summary and **editable** display form, definition, level, and **full `extensions` JSON** (merged on save into Postgres `core.lexemes`). Bulk CSV remains available via **`POST /apps/dictation/words/bulk-upload`** for scripts if needed.
 - **Browse / verify:** `/apps/dictation/ui/review.html` — paginated list including `extensions` (pronunciation, etymology, spelling tips) when populated.
-- **Rich import (CLI):** `scripts/import_school_spelling_words.py` — merges API + Wiktionary data into `extensions`. Example with Compose:
+- **Oxford 3000/5000–style import (CLI):** `scripts/import_oxford_5000.py` reads the open [nalgeon/words `oxford-5k.csv`](https://github.com/nalgeon/words/blob/main/data/oxford-5k.csv) (CEFR, part of speech, Oxford Learner's links) and enriches each headword with **api.dictionaryapi.dev** + **Wiktionary** (same pipeline as the school list). **Rebuild the app image** after pulling new scripts, then run (full import is slow and network-heavy; use `--limit` to test):
+
+```bash
+docker compose build app && docker compose up -d
+docker compose exec app sh -c \
+  'export DATABASE_URL_SYNC=postgresql://homeschool:homeschool@postgres:5432/homeschool && \
+   python scripts/import_oxford_5000.py --limit 50'
+```
+
+- **Other rich import (CLI):** `scripts/import_school_spelling_words.py` — merges API + Wiktionary data into `extensions`. Example with Compose:
 
 ```bash
 docker compose exec app sh -c \

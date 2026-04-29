@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import random
 import uuid
 from datetime import date
 from typing import Any
 
-from sqlalchemy import and_, case, func, select, update
+from sqlalchemy import and_, case, func, not_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import DictationAssignment, DictationAttempt, Lexeme
@@ -122,6 +123,7 @@ async def update_lexeme_fields(
     session: AsyncSession,
     lexeme_id: uuid.UUID,
     *,
+    display_word: str | None = None,
     difficulty_level: int | None = None,
     definition: str | None = None,
     extensions: dict[str, Any] | None = None,
@@ -129,6 +131,9 @@ async def update_lexeme_fields(
     lex = await session.get(Lexeme, lexeme_id)
     if not lex:
         return
+    if display_word is not None:
+        s = (display_word or "").strip()
+        lex.display_word = s if s else None
     if difficulty_level is not None:
         lex.difficulty_level = difficulty_level
     if definition is not None:
@@ -339,6 +344,99 @@ async def count_due_for_user(session: AsyncSession, dictation_user_id: int, toda
     return int(await session.scalar(stmt) or 0)
 
 
+async def list_missing_canonical(
+    session: AsyncSession, words: list[str], locale_code: str = DEFAULT_LOCALE
+) -> list[str]:
+    """Return surface forms (lowercase) that are not in core.lexemes for this locale."""
+    missing: list[str] = []
+    for raw in words:
+        clean = (raw or "").lower().strip()
+        if not clean:
+            continue
+        row = await session.scalar(
+            select(Lexeme.id).where(
+                Lexeme.locale_code == locale_code,
+                func.lower(Lexeme.canonical_word) == clean,
+            )
+        )
+        if not row:
+            missing.append(clean)
+    return missing
+
+
+async def list_all_queue_words(
+    session: AsyncSession, dictation_user_id: int
+) -> list[str]:
+    """All canonical words in the dictation practice queue (core.dictation_assignments), sorted."""
+    stmt = (
+        select(Lexeme.canonical_word)
+        .join(DictationAssignment, DictationAssignment.lexeme_id == Lexeme.id)
+        .where(DictationAssignment.dictation_user_id == dictation_user_id)
+        .order_by(Lexeme.canonical_word.asc())
+    )
+    rows = await session.scalars(stmt)
+    return [str(w).lower().strip() for w in rows]
+
+
+async def list_unassigned_lexeme_rows(
+    session: AsyncSession,
+    dictation_user_id: int,
+    *,
+    locale_code: str = DEFAULT_LOCALE,
+) -> list[tuple[str, int | None]]:
+    """(canonical_word, difficulty_level) for dictionary words the user is not already studying."""
+    assigned = select(DictationAssignment.lexeme_id).where(
+        DictationAssignment.dictation_user_id == dictation_user_id
+    )
+    stmt = (
+        select(Lexeme.canonical_word, Lexeme.difficulty_level)
+        .where(
+            Lexeme.locale_code == locale_code,
+            not_(Lexeme.id.in_(assigned)),
+        )
+        .order_by(Lexeme.canonical_word.asc())
+    )
+    rows = (await session.execute(stmt)).all()
+    return [(str(w), d if d is not None else None) for w, d in rows]
+
+
+def pick_lexemes_stratified(
+    rows: list[tuple[str, int | None]],
+    n: int,
+    *,
+    center_level: int,
+) -> list[str]:
+    """Pick n distinct words, preferring DB difficulty near the student's skill level."""
+    if not rows or n <= 0:
+        return []
+    n = min(n, len(rows))
+    center_level = max(1, min(10, int(center_level)))
+    candidates: list[tuple[str, float]] = []
+    for w, d in rows:
+        if d is not None and 1 <= d <= 10:
+            wgt = max(0.05, 1.0 - abs(d - center_level) / 9.0)
+        else:
+            wgt = 0.35
+        candidates.append((w, wgt))
+    random.shuffle(candidates)
+    picked: list[str] = []
+    pool = list(candidates)
+    while len(picked) < n and pool:
+        total = sum(wt for _, wt in pool)
+        r = random.random() * total
+        acc = 0.0
+        idx = 0
+        for i, (_w, wt) in enumerate(pool):
+            acc += wt
+            if r <= acc:
+                idx = i
+                break
+        w, _ = pool.pop(idx)
+        if w not in picked:
+            picked.append(w)
+    return picked
+
+
 async def commit_words_for_user(
     session: AsyncSession,
     dictation_user_id: int,
@@ -347,7 +445,29 @@ async def commit_words_for_user(
     locale_code: str = DEFAULT_LOCALE,
 ) -> int:
     return await _count_assignments_added(
-        session, dictation_user_id, words, difficulty_level, locale_code
+        session,
+        dictation_user_id,
+        words,
+        difficulty_level,
+        locale_code,
+        create_if_missing=True,
+    )
+
+
+async def commit_words_for_user_existing_only(
+    session: AsyncSession,
+    dictation_user_id: int,
+    words: list[str],
+    locale_code: str = DEFAULT_LOCALE,
+) -> int:
+    """Only assign words that already exist in core.lexemes (no new dictionary rows)."""
+    return await _count_assignments_added(
+        session,
+        dictation_user_id,
+        words,
+        1,
+        locale_code,
+        create_if_missing=False,
     )
 
 
@@ -357,6 +477,8 @@ async def _count_assignments_added(
     words: list[str],
     difficulty_level: int,
     locale_code: str,
+    *,
+    create_if_missing: bool = True,
 ) -> int:
     """Insert words and return how many new assignment rows were created."""
     assigned = 0
@@ -364,9 +486,18 @@ async def _count_assignments_added(
         clean = raw.lower().strip()
         if not clean:
             continue
-        lex = await get_or_create_lexeme(
-            session, clean, locale_code=locale_code, difficulty_level=difficulty_level
-        )
+        if create_if_missing:
+            lex = await get_or_create_lexeme(
+                session, clean, locale_code=locale_code, difficulty_level=difficulty_level
+            )
+        else:
+            stmt = select(Lexeme).where(
+                Lexeme.locale_code == locale_code,
+                func.lower(Lexeme.canonical_word) == clean,
+            )
+            lex = (await session.scalars(stmt)).first()
+            if not lex:
+                continue
         chk = await session.scalar(
             select(DictationAssignment.id).where(
                 DictationAssignment.dictation_user_id == dictation_user_id,

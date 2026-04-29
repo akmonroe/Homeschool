@@ -71,6 +71,14 @@
         
         #loading { display: none; color: #7f8c8d; font-style: italic; margin-top: 10px;}
         .hidden { display: none; }
+        #session-message {
+            display: none;
+            margin: 0 0 10px;
+            font-size: 1.1em;
+            line-height: 1.4;
+            color: #1e8449;
+        }
+        #session-message.visible { display: block; }
     </style>
 </head>
 <body>
@@ -90,6 +98,7 @@
 
     <div class="container hidden" id="game-screen">
         <h2 id="progress-text">Word 1 of ?</h2>
+        <p id="session-message" class="session-message"></p>
         
         <button class="btn-listen" id="btn-listen" onclick="playAudio()">🔊 Listen to Sentence</button>
         <p id="listen-hint" style="display:none;font-size:0.9em;color:#7f8c8d;margin:6px 0 0;">Same sentence each time until you go to the next word.</p>
@@ -180,32 +189,95 @@
         window.onload = fetchUsersOnLoad;
 
 
+        function resetGameControlsForStudy() {
+            document.getElementById('btn-listen').style.display = '';
+            document.getElementById('btn-word-only').style.display = '';
+            document.getElementById('btn-sentence-again').style.display = '';
+            const row = document.querySelector('#game-screen .btn-row');
+            if (row) row.style.display = '';
+            document.getElementById('spelling-input').style.display = '';
+            document.getElementById('btn-next').classList.add('hidden');
+            document.getElementById('btn-next').style.display = '';
+            document.getElementById('btn-submit').classList.remove('hidden');
+            document.getElementById('btn-submit').style.display = '';
+        }
+
+        /** No words in the practice queue (nothing due today = all caught up). */
+        function showAllCaughtUp(subtitle) {
+            resetEndState();
+            const sub = subtitle || "You have no words to practice right now. Ask a teacher to assign new spelling words, then come back.";
+            document.getElementById('progress-text').textContent = 'All caught up!';
+            const msg = document.getElementById('session-message');
+            msg.textContent = sub;
+            msg.className = 'session-message visible';
+            document.getElementById('btn-listen').style.display = 'none';
+            document.getElementById('btn-word-only').style.display = 'none';
+            document.getElementById('btn-sentence-again').style.display = 'none';
+            document.querySelector('.btn-row').style.display = 'none';
+            document.getElementById('spelling-input').style.display = 'none';
+            document.getElementById('btn-next').style.display = 'none';
+            document.getElementById('btn-submit').style.display = 'none';
+            document.getElementById('btn-hint').style.display = 'none';
+            document.getElementById('feedback-area').style.display = 'none';
+        }
+
+        function resetEndState() {
+            document.getElementById('session-message').textContent = '';
+            document.getElementById('session-message').className = 'session-message';
+        }
+
         async function startSession() {
+            if (!document.getElementById('user-select').value) {
+                alert('Pick your name first.');
+                return;
+            }
             // 1. Get the selected child's ID
             currentUserId = document.getElementById('user-select').value;
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
+            resetEndState();
+            resetGameControlsForStudy();
 
             // 2. Ask the database what words they need to practice today
             try {
                 const response = await fetch(`${API_BASE}/users/${currentUserId}/words/due`);
-                const data = await response.json();
-
-                if (data.count === 0) {
-                    showAllDone();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseErr) {
+                    showAllCaughtUp("We could not read your word list. Check your connection and try again.");
                     return;
                 }
 
-                dueWords = data.due_words;
+                if (!response.ok) {
+                    const detail = (data && data.detail) ? String(data.detail) : (response.statusText || 'Error');
+                    showAllCaughtUp("We could not load your word list: " + detail);
+                    return;
+                }
+
+                const list = Array.isArray(data.due_words) ? data.due_words : [];
+                const count = typeof data.count === 'number' ? data.count : list.length;
+                if (count === 0 || list.length === 0) {
+                    showAllCaughtUp();
+                    return;
+                }
+
+                dueWords = list;
                 currentIndex = 0;
                 loadWordToUI();
             } catch (e) {
-                alert("Could not connect to the database!");
+                showAllCaughtUp("We could not reach the server. Check your connection and try again.");
             }
         }
 
         function loadWordToUI() {
+            document.getElementById('session-message').textContent = '';
+            document.getElementById('session-message').className = 'session-message';
             const row = dueWords[currentIndex];
+            if (!row || !row.word) {
+                showAllCaughtUp("Something is wrong with this word list. Ask a teacher for help.");
+                return;
+            }
             currentTargetWord = row.word;
             let dw = (row.display_word && String(row.display_word).trim()) ? String(row.display_word).trim() : null;
             if (dw && dw.toLowerCase() === currentTargetWord) {
@@ -252,9 +324,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ word: currentDisplayWord, regenerate: false })
                 });
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseErr) {
+                    const fe = document.getElementById('feedback-area');
+                    fe.style.display = 'block';
+                    fe.className = 'incorrect';
+                    fe.innerText = "We could not load the audio. Try again.";
+                    return;
+                }
 
-                if (data.status === 'success') {
+                if (response.ok && data.status === 'success') {
                     const rev = typeof data.revision === 'number' ? data.revision : 0;
                     audioRevision = rev;
                     const ts = Date.now();
@@ -269,7 +350,7 @@
                     const blankLen = Math.max(currentDisplayWord.replace(/\s/g, '').length, 3);
                     const blank = '_'.repeat(blankLen);
                     const regex = new RegExp(`\\b${escapeRegExp(currentDisplayWord)}\\b|\\b${escapeRegExp(currentTargetWord)}\\b`, 'gi');
-                    const blankedSentence = data.sentence.replace(regex, blank);
+                    const blankedSentence = (data.sentence || '').replace(regex, blank);
 
                     const sentenceEl = document.getElementById('sentence-hint');
                     sentenceEl.innerText = blankedSentence;
@@ -279,10 +360,19 @@
                     audioReady = true;
                     document.getElementById('btn-word-only').disabled = false;
                     document.getElementById('btn-sentence-again').disabled = false;
+                } else {
+                    const fe = document.getElementById('feedback-area');
+                    fe.style.display = 'block';
+                    fe.className = 'incorrect';
+                    const d = (data && data.detail) ? String(data.detail) : (data && data.message) || 'Could not make audio for this word.';
+                    fe.innerText = d;
                 }
 
             } catch (e) {
-                alert("Error generating audio!");
+                const fe = document.getElementById('feedback-area');
+                fe.style.display = 'block';
+                fe.className = 'incorrect';
+                fe.innerText = "Could not load audio. Check your connection and try again.";
             }
 
             btn.disabled = false;
@@ -318,7 +408,31 @@
                     user_input: userInput
                 })
             });
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                const feedbackArea = document.getElementById('feedback-area');
+                feedbackArea.style.display = 'block';
+                feedbackArea.className = "incorrect";
+                feedbackArea.innerText = "We could not check your answer. Try again.";
+                return;
+            }
+
+            if (!response.ok) {
+                const detail = (data && data.detail) ? String(data.detail) : '';
+                const feedbackArea = document.getElementById('feedback-area');
+                feedbackArea.style.display = 'block';
+                feedbackArea.className = "incorrect";
+                if (response.status === 404) {
+                    feedbackArea.innerText = (detail && detail.toLowerCase().includes('not assigned'))
+                        ? "This word is not in your practice list. You are all caught up, or your teacher can assign new words."
+                        : (detail || "That word was not found.");
+                } else {
+                    feedbackArea.innerText = detail || "We could not check your answer. Try again.";
+                }
+                return;
+            }
 
             // Display the AI feedback
             const feedbackArea = document.getElementById('feedback-area');
@@ -385,8 +499,13 @@
             }
         }
 
+        /** Finished the last word in the current set. */
         function showAllDone() {
-            document.getElementById('progress-text').innerText = "All done for today! 🎉";
+            resetEndState();
+            document.getElementById('progress-text').textContent = "All done for today! 🎉";
+            const msg = document.getElementById('session-message');
+            msg.textContent = "You finished every word in your list.";
+            msg.className = 'session-message visible';
             document.getElementById('btn-listen').style.display = 'none';
             document.getElementById('btn-word-only').style.display = 'none';
             document.getElementById('btn-sentence-again').style.display = 'none';

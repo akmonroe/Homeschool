@@ -160,6 +160,7 @@ class Assignment(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     app_slug: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="draft")
+    available_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     rubric_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
@@ -175,6 +176,7 @@ class Assignment(Base):
     student: Mapped[Student] = relationship(back_populates="assignments")
     project: Mapped[Project | None] = relationship(back_populates="assignments")
     items: Mapped[list[AssignmentItem]] = relationship(back_populates="assignment", cascade="all, delete-orphan")
+    grades: Mapped[list["Grade"]] = relationship(back_populates="assignment")
 
 
 class AssignmentItem(Base):
@@ -223,9 +225,13 @@ class Grade(Base):
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
 
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    graded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     student: Mapped[Student] = relationship(back_populates="grades")
+    assignment: Mapped[Assignment | None] = relationship(back_populates="grades")
 
 
 class SkillObservation(Base):
