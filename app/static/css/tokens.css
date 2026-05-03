@@ -1,0 +1,94 @@
+/**
+ * Homeschool design tokens — single source for color, type, radius, shadow.
+ * Surfaces: use --hs-color-bg-page, --hs-color-bg-muted, --hs-color-surface.
+ */
+
+:root {
+  /* Typography */
+  --hs-font-sans: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --hs-font-display: "Comic Sans MS", "Chalkboard SE", "Segoe Print", cursive, var(--hs-font-sans);
+  --hs-font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", monospace;
+
+  --hs-text-xs: 0.75rem;
+  --hs-text-sm: 0.875rem;
+  --hs-text-md: 1rem;
+  --hs-text-lg: 1.125rem;
+  --hs-text-xl: 1.25rem;
+  --hs-text-2xl: 1.5rem;
+
+  --hs-leading-tight: 1.35;
+  --hs-leading-normal: 1.5;
+  --hs-leading-relaxed: 1.55;
+
+  /* Neutrals (slate-warm, works for admin + portal) */
+  --hs-color-bg-page: #f0f4f8;
+  --hs-color-bg-muted: #f1f5f9;
+  --hs-color-surface: #ffffff;
+  --hs-color-surface-raised: #fafafa;
+  --hs-color-text: #1e293b;
+  --hs-color-text-secondary: #475569;
+  --hs-color-text-muted: #64748b;
+  --hs-color-border: #cbd5e1;
+  --hs-color-border-subtle: #e2e8f0;
+
+  /* Brand / accent (teal — portal + admin primary) */
+  --hs-color-accent: #0d9488;
+  --hs-color-accent-hover: #0f766e;
+  --hs-color-accent-soft: #ccfbf1;
+  --hs-color-accent-text: #0f766e;
+
+  /* Semantic */
+  --hs-color-danger: #b91c1c;
+  --hs-color-danger-bg: #fef2f2;
+  --hs-color-danger-border: #fecaca;
+  --hs-color-success: #047857;
+  --hs-color-success-bg: #d1fae5;
+  --hs-color-success-border: #6ee7b7;
+  --hs-color-warning-bg: #fef9e7;
+  --hs-color-warning-border: #f4d03f;
+  --hs-color-warning-text: #7d6608;
+
+  /* Secondary actions & purple (AI) */
+  --hs-color-secondary-bg: #e2e8f0;
+  --hs-color-secondary-text: #334155;
+  --hs-color-ai: #7c3aed;
+  --hs-color-ai-hover: #6d28d9;
+
+  /* Dictation game buttons (distinct hues, still harmonized) */
+  --hs-color-dict-listen: #9b59b6;
+  --hs-color-dict-listen-hover: #8e44ad;
+  --hs-color-dict-check: #2ecc71;
+  --hs-color-dict-word: #8e44ad;
+  --hs-color-dict-again: #16a085;
+  --hs-color-dict-help: #e67e22;
+
+  /* Radius & shadow */
+  --hs-radius-sm: 6px;
+  --hs-radius-md: 8px;
+  --hs-radius-lg: 12px;
+  --hs-radius-xl: 15px;
+  --hs-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --hs-shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 14px rgba(15, 23, 42, 0.06);
+  --hs-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.1);
+
+  /* Layout */
+  --hs-space-1: 0.25rem;
+  --hs-space-2: 0.5rem;
+  --hs-space-3: 0.75rem;
+  --hs-space-4: 1rem;
+  --hs-space-5: 1.25rem;
+  --hs-space-6: 1.5rem;
+  --hs-touch-min: 44px;
+
+  /* Legacy aliases (portal had --bg, --accent) — keep for gradual migration */
+  --bg: var(--hs-color-bg-page);
+  --surface: var(--hs-color-surface);
+  --ink: var(--hs-color-text);
+  --muted: var(--hs-color-text-muted);
+  --accent: var(--hs-color-accent);
+  --accent-hover: var(--hs-color-accent-hover);
+  --border: var(--hs-color-border-subtle);
+  --shadow: var(--hs-shadow-md);
+  --radius: var(--hs-radius-lg);
+  --font: var(--hs-font-sans);
+}

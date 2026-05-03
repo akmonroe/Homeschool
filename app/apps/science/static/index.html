@@ -7,6 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/tokens.css" />
+  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/components.css" />
   <link rel="stylesheet" href="static/screen.css" />
 </head>
 <body>
@@ -45,7 +48,7 @@
             <h2 class="nav-title">New page</h2>
             <div class="new-doc-row">
               <input type="text" id="ad-hoc-title" placeholder="Title…" aria-label="New experiment title" />
-              <button type="button" class="btn-primary" id="btn-ad-hoc" title="Create blank experiment">Create</button>
+              <button type="button" class="btn btn-primary" id="btn-ad-hoc" title="Create blank experiment">Create</button>
             </div>
           </div>
 
@@ -76,7 +79,7 @@
               <p id="err" class="toast-err" role="alert"></p>
               <div class="doc-toolbar-right">
                 <span class="save-hint" id="save-hint">Unsaved changes are not kept until you save.</span>
-                <button type="button" class="btn-primary" id="btn-save">Save</button>
+                <button type="button" class="btn btn-primary" id="btn-save">Save</button>
               </div>
             </div>
 
@@ -108,7 +111,7 @@
                   <ul id="obs-list" class="timeline" aria-label="Observation log"></ul>
                   <div class="obs-add">
                     <input type="text" id="obs-in" placeholder="Add an observation (dated automatically)…" autocomplete="off" />
-                    <button type="button" class="btn-secondary" id="btn-obs">Add</button>
+                    <button type="button" class="btn btn-secondary" id="btn-obs">Add</button>
                   </div>
                 </section>
 
@@ -116,7 +119,7 @@
                   <h2>Photos &amp; video</h2>
                   <div class="media-upload">
                     <input type="file" id="file-in" accept="image/*,video/*" />
-                    <button type="button" class="btn-secondary" id="btn-upload">Upload</button>
+                    <button type="button" class="btn btn-secondary" id="btn-upload">Upload</button>
                   </div>
                   <div id="media-wrap" class="media-grid" aria-label="Attached media"></div>
                 </section>

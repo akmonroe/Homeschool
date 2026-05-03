@@ -1,0 +1,157 @@
+/**
+ * Shared UI primitives. Load after base.css.
+ * Use BEM-ish modifiers: .hs-btn--primary
+ */
+
+.hs-btn,
+button.hs-btn,
+a.hs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hs-space-2);
+  min-height: var(--hs-touch-min);
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--hs-radius-md);
+  font-size: var(--hs-text-sm);
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.hs-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.hs-btn:disabled,
+.hs-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.hs-btn--primary {
+  background: var(--hs-color-accent);
+  color: #fff;
+}
+
+.hs-btn--primary:hover:not(:disabled) {
+  background: var(--hs-color-accent-hover);
+  color: #fff;
+}
+
+.hs-btn--secondary {
+  background: var(--hs-color-secondary-bg);
+  color: var(--hs-color-secondary-text);
+  border: 1px solid var(--hs-color-border-subtle);
+}
+
+.hs-btn--secondary:hover:not(:disabled) {
+  background: var(--hs-color-border-subtle);
+}
+
+.hs-btn--ai {
+  background: var(--hs-color-ai);
+  color: #fff;
+}
+
+.hs-btn--ai:hover:not(:disabled) {
+  background: var(--hs-color-ai-hover);
+}
+
+.hs-btn--danger {
+  background: var(--hs-color-danger-bg);
+  color: var(--hs-color-danger);
+  border: 2px solid var(--hs-color-danger-border);
+}
+
+.hs-card {
+  background: var(--hs-color-surface);
+  border: 1px solid var(--hs-color-border-subtle);
+  border-radius: var(--hs-radius-lg);
+  box-shadow: var(--hs-shadow-md);
+}
+
+.hs-hint {
+  color: var(--hs-color-text-muted);
+  font-size: var(--hs-text-sm);
+  line-height: var(--hs-leading-normal);
+  margin: 0;
+}
+
+.hs-err {
+  color: var(--hs-color-danger);
+  font-size: var(--hs-text-sm);
+  margin-top: var(--hs-space-2);
+}
+
+.hs-ok {
+  color: var(--hs-color-success);
+  font-size: var(--hs-text-sm);
+  margin-top: var(--hs-space-2);
+}
+
+/* Portal compatibility: same names as before */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--hs-radius-md);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--hs-color-accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--hs-color-accent-hover);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: #f5f5f4;
+  color: var(--hs-color-text);
+  border: 1px solid var(--hs-color-border-subtle);
+}
+
+.btn-secondary:hover {
+  background: var(--hs-color-border-subtle);
+  color: var(--hs-color-text);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.badge {
+  display: inline-block;
+  font-size: var(--hs-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--hs-radius-sm);
+  background: var(--hs-color-accent-soft);
+  color: var(--hs-color-accent-text);
+}
+
+.badge-soon {
+  background: #fef3c7;
+  color: #92400e;
+}

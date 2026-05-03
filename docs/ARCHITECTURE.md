@@ -68,6 +68,25 @@ Implementation: `app/apps/dictation/dictation_app.py` (cache + routes + Ollama),
 
 ---
 
+## 3.1 Shared UI styles (tokens + components)
+
+Static CSS lives under **`app/static/css/`**:
+
+| File | Role |
+|------|------|
+| `tokens.css` | CSS variables (`--hs-*`): colors, type scale, radius, shadows |
+| `base.css` | Box model, `body`, links, `:focus-visible` |
+| `components.css` | Shared `.btn` / `.badge` and portal card compatibility |
+
+**Load order:** `tokens.css` → `base.css` → `components.css` → app-specific CSS.
+
+- **Portal:** `portal.css` (layout only).
+- **Admin:** `admin/admin.css` (scoped under `.admin-page`); linked from `/admin/static/admin.css`.
+- **Science:** `screen.css` maps local variables to `--hs-*` from tokens.
+- **Dictation:** `dictation.css` / `review.css` under `apps/dictation/static/`.
+
+---
+
 ## 3. Data stores
 
 | Store | Technology | Contents |

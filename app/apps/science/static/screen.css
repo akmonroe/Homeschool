@@ -1,55 +1,24 @@
-/* Science lab — document / wiki style (Confluence-adjacent) */
+/* Science lab — document layout; colors/type from shared tokens.css */
 
 :root {
-  --bg-app: #f4f5f7;
-  --bg-sidebar: #ffffff;
-  --bg-page: #ffffff;
-  --border: #dfe1e6;
-  --border-subtle: #ebecf0;
-  --text: #172b4d;
-  --text-secondary: #5e6c84;
-  --text-muted: #97a0af;
-  --accent: #0c66e4;
-  --accent-hover: #0055cc;
-  --radius: 3px;
-  --shadow-page: 0 1px 1px rgba(9, 30, 66, 0.13), 0 0 1px rgba(9, 30, 66, 0.11);
-  --font: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", monospace;
+  --bg-app: var(--hs-color-bg-page);
+  --bg-sidebar: var(--hs-color-surface);
+  --bg-page: var(--hs-color-surface);
+  --border: var(--hs-color-border);
+  --border-subtle: var(--hs-color-border-subtle);
+  --text: var(--hs-color-text);
+  --text-secondary: var(--hs-color-text-secondary);
+  --text-muted: var(--hs-color-text-muted);
+  --accent: var(--hs-color-accent);
+  --accent-hover: var(--hs-color-accent-hover);
+  --radius: var(--hs-radius-sm);
+  --shadow-page: var(--hs-shadow-sm);
+  --font: var(--hs-font-sans);
+  --font-mono: var(--hs-font-mono);
   --sidebar-w: 280px;
   --page-max: 720px;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  height: 100%;
-  margin: 0;
-}
-
-body {
-  font-family: var(--font);
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--text);
-  background: var(--bg-app);
-  -webkit-font-smoothing: antialiased;
-}
-
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-  color: var(--accent-hover);
-}
-
-/* —— App shell —— */
 .app {
   min-height: 100%;
   display: flex;
@@ -343,7 +312,7 @@ a:hover {
   color: var(--text);
 }
 .btn-back:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--hs-color-accent);
   outline-offset: 1px;
 }
 
@@ -371,38 +340,6 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.btn-primary {
-  padding: 0.4rem 0.85rem;
-  border: none;
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-primary:hover {
-  background: var(--accent-hover);
-}
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn-secondary {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #fff;
-  font: inherit;
-  font-size: 0.875rem;
-  color: var(--text);
-  cursor: pointer;
-}
-.btn-secondary:hover {
-  background: #f7f8f9;
 }
 
 .save-hint {

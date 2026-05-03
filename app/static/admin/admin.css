@@ -1,0 +1,475 @@
+/**
+ * Platform admin — layout and admin-specific components.
+ * Requires: tokens.css, base.css, components.css (linked from index.html).
+ */
+
+.admin-page {
+  padding: 16px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 640px) {
+  .admin-page {
+    padding: 12px;
+  }
+  .admin-page h1 {
+    font-size: 1.35rem;
+  }
+}
+
+.admin-page h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  color: var(--hs-color-text);
+}
+
+.admin-page .sub {
+  color: var(--hs-color-text-muted);
+  margin-bottom: 24px;
+  font-size: 0.95rem;
+}
+
+.admin-page a.nav {
+  color: var(--hs-color-accent);
+  font-weight: 500;
+}
+
+.admin-page .tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.admin-page .tabs button {
+  flex-shrink: 0;
+  padding: 12px 14px;
+  border: none;
+  background: var(--hs-color-secondary-bg);
+  cursor: pointer;
+  border-radius: var(--hs-radius-md) var(--hs-radius-md) 0 0;
+  font-size: 0.9rem;
+  min-height: var(--hs-touch-min);
+  font-family: inherit;
+  color: var(--hs-color-text);
+}
+
+.admin-page .tabs button.active {
+  background: var(--hs-color-surface);
+  font-weight: 600;
+  border-bottom: 2px solid var(--hs-color-accent);
+}
+
+.admin-page .panel {
+  display: none;
+  background: var(--hs-color-surface);
+  padding: 24px;
+  border-radius: 0 var(--hs-radius-lg) var(--hs-radius-lg) var(--hs-radius-lg);
+  box-shadow: var(--hs-shadow-sm);
+  max-width: 960px;
+}
+
+.admin-page .panel.active {
+  display: block;
+}
+
+.admin-page .panel-wide {
+  max-width: 1100px;
+}
+
+.admin-page label {
+  display: block;
+  font-weight: 600;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  color: var(--hs-color-text);
+}
+
+.admin-page input,
+.admin-page select,
+.admin-page textarea {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px;
+  border: 1px solid var(--hs-color-border);
+  border-radius: var(--hs-radius-md);
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: var(--hs-text-md);
+}
+
+.admin-page textarea {
+  max-width: 100%;
+  min-height: 100px;
+  font-family: var(--hs-font-mono);
+}
+
+.admin-page table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  font-size: 0.9rem;
+}
+
+.admin-page th,
+.admin-page td {
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--hs-color-border-subtle);
+}
+
+.admin-page th {
+  background: var(--hs-color-bg-muted);
+}
+
+/* Buttons: use shared .btn; admin adds vertical rhythm */
+.admin-page .btn {
+  margin-top: 12px;
+}
+
+.admin-page .btn-ai {
+  background: var(--hs-color-ai);
+  color: #fff;
+  border: none;
+  border-radius: var(--hs-radius-md);
+  padding: 10px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: var(--hs-touch-min);
+  font-family: inherit;
+  font-size: var(--hs-text-sm);
+}
+
+.admin-page .btn-ai:hover {
+  background: var(--hs-color-ai-hover);
+}
+
+.admin-page .btn-save {
+  background: var(--hs-color-secondary-bg);
+  color: var(--hs-color-secondary-text);
+  padding: 6px 12px;
+  margin-top: 0;
+  font-size: 0.85rem;
+  border: none;
+  border-radius: var(--hs-radius-md);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.admin-page .err {
+  color: var(--hs-color-danger);
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.admin-page .ok {
+  color: var(--hs-color-success);
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.admin-page .draft-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--hs-color-bg-muted);
+  border-radius: var(--hs-radius-md);
+  border: 1px solid var(--hs-color-border-subtle);
+  display: none;
+}
+
+.admin-page .hint {
+  color: var(--hs-color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0;
+}
+
+.admin-page .chart-container {
+  position: relative;
+  height: 380px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.admin-page #lexeme-dictionary {
+  margin-top: 8px;
+}
+
+.admin-page .lex-card {
+  border: 1px solid var(--hs-color-border-subtle);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  background: var(--hs-color-surface-raised);
+  text-align: left;
+}
+
+.admin-page .lex-card h3 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  color: var(--hs-color-text);
+}
+
+.admin-page .lex-meta {
+  font-size: 0.8rem;
+  color: var(--hs-color-text-muted);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.admin-page .lex-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hs-color-border-subtle);
+  font-size: 0.9rem;
+}
+
+.admin-page .lex-section strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--hs-color-text-secondary);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-page .lex-section pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--hs-font-mono);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.admin-page .lex-tricks {
+  margin: 6px 0 0 1.1em;
+  padding: 0;
+}
+
+.admin-page .lex-edit {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.admin-page .lex-edit label {
+  margin-top: 0;
+}
+
+.admin-page .lex-edit input[type="number"] {
+  width: 72px;
+  max-width: none;
+}
+
+.admin-page .lex-edit input[type="text"] {
+  flex: 1;
+  min-width: 180px;
+  max-width: 100%;
+}
+
+/* Assignments tab */
+.admin-page .assign-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  max-width: 100%;
+}
+
+@media (min-width: 560px) {
+  .admin-page .assign-toolbar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+  }
+  .admin-page .assign-toolbar .field-grow {
+    flex: 1;
+    min-width: 180px;
+  }
+}
+
+.admin-page .assign-toolbar label {
+  margin-top: 0;
+}
+
+.admin-page .assign-toolbar select,
+.admin-page .assign-toolbar input {
+  max-width: 100%;
+}
+
+.admin-page .btn-refresh {
+  margin-top: 0;
+  min-height: var(--hs-touch-min);
+  padding: 12px 18px;
+}
+
+.admin-page .assignment-card {
+  border: 1px solid var(--hs-color-border-subtle);
+  border-radius: var(--hs-radius-lg);
+  background: var(--hs-color-surface-raised);
+  margin-bottom: 12px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.admin-page .assignment-card summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.admin-page .assignment-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-page .assignment-card summary::after {
+  content: "▸";
+  color: var(--hs-color-text-muted);
+  font-size: 0.85rem;
+  margin-left: auto;
+}
+
+.admin-page .assignment-card[open] summary::after {
+  content: "▾";
+}
+
+.admin-page .assign-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-page .assign-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.admin-page .assign-badge.draft {
+  background: var(--hs-color-bg-muted);
+  color: var(--hs-color-text-secondary);
+}
+
+.admin-page .assign-badge.assigned {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.admin-page .assign-meta {
+  padding: 0 16px 12px;
+  font-size: 0.88rem;
+  color: var(--hs-color-text-secondary);
+  line-height: 1.5;
+}
+
+.admin-page .assign-form {
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--hs-color-border-subtle);
+  background: var(--hs-color-surface);
+}
+
+.admin-page .assign-form label {
+  margin-top: 10px;
+}
+
+.admin-page .assign-form label:first-child {
+  margin-top: 0;
+}
+
+.admin-page .assign-form input[type="text"],
+.admin-page .assign-form select,
+.admin-page .assign-form textarea {
+  max-width: 100%;
+  font-size: 16px;
+}
+
+.admin-page .assign-form-row {
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 480px) {
+  .admin-page .assign-form-row.two {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-page .assign-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (min-width: 420px) {
+  .admin-page .assign-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .admin-page .btn-assign-save {
+    flex: 2;
+    margin-top: 0 !important;
+  }
+  .admin-page .btn-assign-delete {
+    flex: 1;
+    margin-top: 0 !important;
+  }
+}
+
+.admin-page .btn-assign-save {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 48px;
+  font-size: 1rem;
+  background: var(--hs-color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-page .btn-assign-save:hover {
+  background: var(--hs-color-accent-hover);
+}
+
+.admin-page .btn-assign-delete {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+  background: var(--hs-color-danger-bg);
+  color: var(--hs-color-danger);
+  border: 2px solid var(--hs-color-danger-border);
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-page .assign-empty {
+  color: var(--hs-color-text-muted);
+  padding: 20px;
+  text-align: center;
+}
