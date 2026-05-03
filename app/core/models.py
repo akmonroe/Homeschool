@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -109,28 +110,67 @@ class Student(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    projects: Mapped[list[Project]] = relationship(back_populates="student", cascade="all, delete-orphan")
     assignments: Mapped[list[Assignment]] = relationship(back_populates="student", cascade="all, delete-orphan")
     grades: Mapped[list[Grade]] = relationship(back_populates="student", cascade="all, delete-orphan")
-    skill_observations: Mapped[list[SkillObservation]] = relationship(
+    science_experiment_runs: Mapped[list["ScienceExperimentRun"]] = relationship(
         back_populates="student", cascade="all, delete-orphan"
     )
 
 
-class Project(Base):
-    """Cross-app grouping: unit study, portfolio, or AI-generated learning path."""
+class ScienceExperimentTemplate(Base):
+    """Reusable lab write-up pattern a student can start from (self-chosen) or see via assignment payload."""
 
-    __tablename__ = "projects"
+    __tablename__ = "science_experiment_templates"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    subject_tags: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    procedure_outline: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    runs: Mapped[list["ScienceExperimentRun"]] = relationship(back_populates="template")
+
+
+class ScienceExperimentRun(Base):
+    """One student experiment session: from an assignment, or chosen from a template, or ad hoc."""
+
+    __tablename__ = "science_experiment_runs"
     __table_args__ = {"schema": SCHEMA}
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.students.id", ondelete="CASCADE"), nullable=False
     )
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.science_experiment_templates.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    assignment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.assignments.id", ondelete="SET NULL"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="active")
-    originating_app: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="self_chosen"
+    )  # assigned | self_chosen | ad_hoc
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="draft")
+    hypothesis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    materials: Mapped[str | None] = mapped_column(Text, nullable=True)
+    procedure_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conclusions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observations_json: Mapped[list[Any]] = mapped_column(
+        "observations", JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
@@ -140,12 +180,40 @@ class Project(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    student: Mapped[Student] = relationship(back_populates="projects")
-    assignments: Mapped[list[Assignment]] = relationship(back_populates="project")
+    student: Mapped[Student] = relationship(back_populates="science_experiment_runs")
+    template: Mapped[ScienceExperimentTemplate | None] = relationship(back_populates="runs")
+    assignment: Mapped[Assignment | None] = relationship(
+        back_populates="science_experiment_runs",
+        foreign_keys="ScienceExperimentRun.assignment_id",
+    )
+    media: Mapped[list["ScienceMedia"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class ScienceMedia(Base):
+    """Image or video stored on disk; path is relative to SCIENCE_DATA_DIR."""
+
+    __tablename__ = "science_media"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.science_experiment_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    rel_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # image | video
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    run: Mapped[ScienceExperimentRun] = relationship(back_populates="media")
 
 
 class Assignment(Base):
-    """Work assigned to a student; AI agents can draft rows using rubric_json / metadata."""
+    """Work assigned to a student (dictation, science, etc.)."""
 
     __tablename__ = "assignments"
     __table_args__ = {"schema": SCHEMA}
@@ -154,16 +222,12 @@ class Assignment(Base):
     student_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.students.id", ondelete="CASCADE"), nullable=False
     )
-    project_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.projects.id", ondelete="SET NULL"), nullable=True
-    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     app_slug: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="draft")
     available_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
-    rubric_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
@@ -174,9 +238,11 @@ class Assignment(Base):
     )
 
     student: Mapped[Student] = relationship(back_populates="assignments")
-    project: Mapped[Project | None] = relationship(back_populates="assignments")
     items: Mapped[list[AssignmentItem]] = relationship(back_populates="assignment", cascade="all, delete-orphan")
     grades: Mapped[list["Grade"]] = relationship(back_populates="assignment")
+    science_experiment_runs: Mapped[list["ScienceExperimentRun"]] = relationship(
+        back_populates="assignment", foreign_keys="ScienceExperimentRun.assignment_id"
+    )
 
 
 class AssignmentItem(Base):
@@ -211,16 +277,11 @@ class Grade(Base):
     assignment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.assignments.id", ondelete="SET NULL"), nullable=True
     )
-    project_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.projects.id", ondelete="SET NULL"), nullable=True
-    )
     scored_by: Mapped[str] = mapped_column(String(32), nullable=False, server_default="human")
     score_numeric: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
     score_max: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
     letter: Mapped[str | None] = mapped_column(String(8), nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
-    rubric_scores_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    evidence_refs_json: Mapped[list[Any] | dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
@@ -233,32 +294,3 @@ class Grade(Base):
     student: Mapped[Student] = relationship(back_populates="grades")
     assignment: Mapped[Assignment | None] = relationship(back_populates="grades")
 
-
-class SkillObservation(Base):
-    """Time-series skill signals; agents or apps append rows (e.g. spelling.level)."""
-
-    __tablename__ = "skill_observations"
-    __table_args__ = {"schema": SCHEMA}
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.students.id", ondelete="CASCADE"), nullable=False
-    )
-    skill_key: Mapped[str] = mapped_column(String(128), nullable=False)
-    scale_min: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
-    scale_max: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
-    value_numeric: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
-    value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    source: Mapped[str] = mapped_column(String(32), nullable=False, server_default="system")
-    confidence: Mapped[float | None] = mapped_column(Numeric(5, 4), nullable=True)
-    context_assignment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.assignments.id", ondelete="SET NULL"), nullable=True
-    )
-    observed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
-    metadata_: Mapped[dict[str, Any]] = mapped_column(
-        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
-    )
-
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    student: Mapped[Student] = relationship(back_populates="skill_observations")

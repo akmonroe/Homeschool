@@ -1,3 +1,5 @@
+# Default stack for a single family machine (~10–15 users): Postgres + app only.
+# Ollama: install on the host (recommended) and set OLLAMA_BASE_URL; do not add a compose service.
 services:
   postgres:
     image: postgres:16-alpine
@@ -30,6 +32,8 @@ services:
       DICTATION_TTS_PLAYBACK_TEMPO: ${DICTATION_TTS_PLAYBACK_TEMPO:-0.58}
       DICTATION_TTS_WORD_PLAYBACK_TEMPO: ${DICTATION_TTS_WORD_PLAYBACK_TEMPO:-}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://homeschool:homeschool@postgres:5432/homeschool}
+      # Science app: media lives under this path (same volume as dictation by default).
+      SCIENCE_DATA_DIR: ${SCIENCE_DATA_DIR:-/app/data/science}
     ports:
       - "4500:4500"
     volumes:
@@ -38,18 +42,6 @@ services:
       postgres:
         condition: service_healthy
 
-  # Opt-in: avoids pulling the large Ollama image on every `docker compose up`.
-  # Start with: docker compose --profile ollama up -d
-  ollama:
-    profiles:
-      - ollama
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-
 volumes:
-  ollama-data:
   dictation-data:
   postgres-data:

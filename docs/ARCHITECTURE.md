@@ -9,9 +9,9 @@ How the FastAPI monorepo is wired, where each UI lives, and how data flows betwe
 A **single** FastAPI application (`app/main.py`) owns:
 
 - **Root routes:** portal (`/`), health, generic `/ai/generate` and `/tts`, platform admin (`/admin/…`)
-- **Mounted sub-app:** dictation at **`/apps/dictation`** (same Python process; paths are prefixed automatically)
+- **Mounted sub-apps:** dictation at **`/apps/dictation`**, science lab at **`/apps/science`** (same Python process; paths are prefixed automatically)
 
-**Lifespan:** `setup_dictation()` runs at startup (SQLite init, Coqui VITS load). Postgres engine is disposed on shutdown when configured.
+**Lifespan:** `setup_dictation()` and `setup_science()` run at startup (dictation: SQLite + Coqui VITS; science: ensure media directory). Postgres engine is disposed on shutdown when configured.
 
 ---
 
@@ -26,11 +26,14 @@ A **single** FastAPI application (`app/main.py`) owns:
 | `/apps/dictation/ui/review.html` | Read-only dictionary browse |
 | `/apps/dictation/ui/admin.html` | Redirects to `/admin/` |
 | `/apps/dictation/docs` | Dictation sub-app OpenAPI |
+| `/apps/science/ui/` | Science lab (experiments, observations, photos/videos) |
+| `/apps/science/v1/...` | Science REST (see **`/apps/science/docs`**) |
 
 **API prefixes**
 
-- **`/core/*`** — shared Postgres domain (students, suite assignments with **`available_from`** / **`due_at`**, grades with **`completed_at`** / **`graded_at`**, dictation session draft/commit)
+- **`/core/*`** — shared Postgres domain (students, suite assignments with **`available_from`** / **`due_at`**, grades with **`completed_at`** / **`graded_at`**, dictation session draft/commit, science experiment tables)
 - **`/apps/dictation/*`** — dictation REST (users, words, study, generate, audio, TTS settings)
+- **`/apps/science/v1/*`** — science lab (templates, runs, JSON observations, multipart media uploads; files under **`SCIENCE_DATA_DIR`**, default `/app/data/science` on the shared volume). OpenAPI: **`/apps/science/docs`**.
 
 ### AI spelling draft (`POST /core/students/{id}/dictation-session/draft`)
 
@@ -69,7 +72,7 @@ Implementation: `app/apps/dictation/dictation_app.py` (cache + routes + Ollama),
 
 | Store | Technology | Contents |
 |-------|------------|----------|
-| **Core** | PostgreSQL, schema `core` | Students, lexemes, dictation queue/attempts, suite assignments/grades/skills |
+| **Core** | PostgreSQL, schema `core` | Students, lexemes, dictation queue/attempts, suite assignments/grades |
 | **Dictation profiles** | SQLite file on volume `dictation-data` | `users` only: display name, skill text, `core_student_id` |
 
 Details: [DATABASE.md](./DATABASE.md).
@@ -103,7 +106,7 @@ Bulk enrichment (etymology, phonetics, tricks) is **not** in the browser; use `s
 
 ## 6. Docker
 
-- **`docker-compose.yml`:** `postgres` + `app`; optional `ollama` profile.
+- **`docker-compose.yml`:** `postgres` + `app` only. Ollama runs on the **host** (default `OLLAMA_BASE_URL`); no bundled Ollama service.
 - **`docker/entrypoint.sh`:** Alembic `upgrade head`, then uvicorn.
 - **Volumes:** `postgres-data`, `dictation-data` (SQLite + TTS temp WAV paths under `/app/data`).
 

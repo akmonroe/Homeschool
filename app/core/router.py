@@ -1,4 +1,4 @@
-"""HTTP API for the shared `core` schema (students, projects, assignments, grades, skills)."""
+"""HTTP API for the shared `core` schema (students, assignments, grades)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import core_db_enabled
 from app.core.deps import get_core_pg_session
-from app.core.models import Assignment, AssignmentItem, Grade, Project, SkillObservation, Student
+from app.core.models import Assignment, AssignmentItem, Grade, Student
 from app.apps.dictation import session_words as dictation_session
 from app.apps.dictation import dictation_lexemes as dictation_lexemes
 from app.core.schemas import (
@@ -32,10 +32,6 @@ from app.core.schemas import (
     GradeCreate,
     GradeOut,
     GradeUpdate,
-    ProjectCreate,
-    ProjectOut,
-    SkillObservationCreate,
-    SkillObservationOut,
     StudentCreate,
     StudentOut,
     StudentUpdate,
@@ -204,14 +200,12 @@ async def commit_dictation_word_session(
 
     assign = Assignment(
         student_id=student_id,
-        project_id=None,
         title="Spelling words (dictation)",
         app_slug="dictation",
         status="assigned",
         available_from=now,
         due_at=due_at,
         instructions="Words assigned from Homeschool admin for dictation practice.",
-        rubric_json=None,
         metadata_={"dictation_user_id": uid, "word_count": len(words)},
     )
     session.add(assign)
@@ -314,14 +308,12 @@ async def sync_dictation_queue_to_suite_assignment(
     if assign_row is None:
         assign_row = Assignment(
             student_id=student_id,
-            project_id=None,
             title=title,
             app_slug="dictation",
             status="assigned",
             available_from=now,
             due_at=due_at,
             instructions="Spelling / dictation practice (synced from the dictation word queue in Postgres).",
-            rubric_json=None,
             metadata_=meta_payload,
         )
         session.add(assign_row)
@@ -358,32 +350,6 @@ async def sync_dictation_queue_to_suite_assignment(
     )
 
 
-@router.get("/students/{student_id}/projects", response_model=list[ProjectOut])
-async def list_projects(session: SessionDep, student_id: uuid.UUID):
-    await _require_student(session, student_id)
-    result = await session.scalars(
-        select(Project).where(Project.student_id == student_id).order_by(Project.created_at.desc())
-    )
-    return list(result)
-
-
-@router.post("/students/{student_id}/projects", response_model=ProjectOut)
-async def create_project(session: SessionDep, student_id: uuid.UUID, body: ProjectCreate):
-    await _require_student(session, student_id)
-    row = Project(
-        student_id=student_id,
-        title=body.title,
-        description=body.description,
-        status=body.status,
-        originating_app=body.originating_app,
-        metadata_=body.metadata,
-    )
-    session.add(row)
-    await session.flush()
-    await session.refresh(row)
-    return row
-
-
 @router.get("/students/{student_id}/assignments", response_model=list[AssignmentOut])
 async def list_assignments(
     session: SessionDep,
@@ -418,20 +384,14 @@ async def list_assignments(
 @router.post("/students/{student_id}/assignments", response_model=AssignmentOut)
 async def create_assignment(session: SessionDep, student_id: uuid.UUID, body: AssignmentCreate):
     await _require_student(session, student_id)
-    if body.project_id:
-        proj = await session.get(Project, body.project_id)
-        if not proj or proj.student_id != student_id:
-            raise HTTPException(status_code=400, detail="Invalid project_id for this student")
     row = Assignment(
         student_id=student_id,
-        project_id=body.project_id,
         title=body.title,
         app_slug=body.app_slug,
         status=body.status,
         available_from=body.available_from,
         due_at=body.due_at,
         instructions=body.instructions,
-        rubric_json=body.rubric_json,
         metadata_=body.metadata,
     )
     session.add(row)
@@ -464,7 +424,7 @@ async def delete_assignment(
     student_id: uuid.UUID,
     assignment_id: uuid.UUID,
 ):
-    """Remove assignment; FKs on grades/skill_observations use ON DELETE SET NULL; items CASCADE."""
+    """Remove assignment; grades referencing it get assignment_id set NULL; items CASCADE."""
     await _require_student(session, student_id)
     result = await session.execute(
         delete(Assignment).where(
@@ -515,23 +475,16 @@ async def create_grade(session: SessionDep, student_id: uuid.UUID, body: GradeCr
     await _require_student(session, student_id)
     if body.assignment_id:
         await _require_assignment(session, student_id, body.assignment_id)
-    if body.project_id:
-        p = await session.get(Project, body.project_id)
-        if not p or p.student_id != student_id:
-            raise HTTPException(status_code=400, detail="Invalid project_id for this student")
     now = _utc_now()
     graded_at = body.graded_at if body.graded_at is not None else now
     row = Grade(
         student_id=student_id,
         assignment_id=body.assignment_id,
-        project_id=body.project_id,
         scored_by=body.scored_by,
         score_numeric=body.score_numeric,
         score_max=body.score_max,
         letter=body.letter,
         feedback=body.feedback,
-        rubric_scores_json=body.rubric_scores_json,
-        evidence_refs_json=body.evidence_refs_json,
         completed_at=body.completed_at,
         graded_at=graded_at,
         metadata_=body.metadata,
@@ -555,55 +508,11 @@ async def update_grade(
         raise HTTPException(status_code=404, detail="Grade not found")
     if body.assignment_id is not None and body.assignment_id:
         await _require_assignment(session, student_id, body.assignment_id)
-    if body.project_id is not None and body.project_id:
-        p = await session.get(Project, body.project_id)
-        if not p or p.student_id != student_id:
-            raise HTTPException(status_code=400, detail="Invalid project_id for this student")
     data = body.model_dump(exclude_unset=True)
     if "metadata" in data:
         data["metadata_"] = data.pop("metadata")
     for k, v in data.items():
         setattr(row, k, v)
-    await session.flush()
-    await session.refresh(row)
-    return row
-
-
-@router.get("/students/{student_id}/skills", response_model=list[SkillObservationOut])
-async def list_skills(
-    session: SessionDep,
-    student_id: uuid.UUID,
-    skill_key: str | None = None,
-    limit: int = Query(200, ge=1, le=1000),
-):
-    await _require_student(session, student_id)
-    q = select(SkillObservation).where(SkillObservation.student_id == student_id)
-    if skill_key:
-        q = q.where(SkillObservation.skill_key == skill_key)
-    q = q.order_by(SkillObservation.created_at.desc()).limit(limit)
-    result = await session.scalars(q)
-    return list(result)
-
-
-@router.post("/students/{student_id}/skills", response_model=SkillObservationOut)
-async def create_skill_observation(session: SessionDep, student_id: uuid.UUID, body: SkillObservationCreate):
-    await _require_student(session, student_id)
-    if body.context_assignment_id:
-        await _require_assignment(session, student_id, body.context_assignment_id)
-    row = SkillObservation(
-        student_id=student_id,
-        skill_key=body.skill_key,
-        scale_min=body.scale_min,
-        scale_max=body.scale_max,
-        value_numeric=body.value_numeric,
-        value_text=body.value_text,
-        source=body.source,
-        confidence=body.confidence,
-        context_assignment_id=body.context_assignment_id,
-        observed_on=body.observed_on,
-        metadata_=body.metadata,
-    )
-    session.add(row)
     await session.flush()
     await session.refresh(row)
     return row

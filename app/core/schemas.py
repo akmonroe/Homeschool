@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,31 +30,8 @@ class StudentOut(BaseModel):
     updated_at: datetime
 
 
-class ProjectCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=500)
-    description: str | None = None
-    status: str = "active"
-    originating_app: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ProjectOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id: uuid.UUID
-    student_id: uuid.UUID
-    title: str
-    description: str | None
-    status: str
-    originating_app: str | None
-    metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
-    created_at: datetime
-    updated_at: datetime
-
-
 class AssignmentCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
-    project_id: uuid.UUID | None = None
     app_slug: str | None = None
     status: str = "draft"
     available_from: datetime | None = Field(
@@ -66,19 +43,16 @@ class AssignmentCreate(BaseModel):
         description="When the assignment is due (timezone-aware). Null = no fixed deadline.",
     )
     instructions: str | None = None
-    rubric_json: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssignmentUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=500)
-    project_id: uuid.UUID | None = None
     app_slug: str | None = None
     status: str | None = None
     available_from: datetime | None = None
     due_at: datetime | None = None
     instructions: str | None = None
-    rubric_json: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -104,14 +78,12 @@ class AssignmentOut(BaseModel):
 
     id: uuid.UUID
     student_id: uuid.UUID
-    project_id: uuid.UUID | None
     title: str
     app_slug: str | None
     status: str
     available_from: datetime | None
     due_at: datetime | None
     instructions: str | None
-    rubric_json: dict[str, Any] | None
     metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
     created_at: datetime
     updated_at: datetime
@@ -123,14 +95,11 @@ class AssignmentOut(BaseModel):
 
 class GradeCreate(BaseModel):
     assignment_id: uuid.UUID | None = None
-    project_id: uuid.UUID | None = None
     scored_by: str = "human"
     score_numeric: float | None = None
     score_max: float | None = None
     letter: str | None = None
     feedback: str | None = None
-    rubric_scores_json: dict[str, Any] | None = None
-    evidence_refs_json: list[Any] | dict[str, Any] | None = None
     completed_at: datetime | None = Field(
         None,
         description="When the learner finished/submitted the work (timezone-aware).",
@@ -148,14 +117,11 @@ class GradeOut(BaseModel):
     id: uuid.UUID
     student_id: uuid.UUID
     assignment_id: uuid.UUID | None
-    project_id: uuid.UUID | None
     scored_by: str
     score_numeric: float | None
     score_max: float | None
     letter: str | None
     feedback: str | None
-    rubric_scores_json: dict[str, Any] | None
-    evidence_refs_json: list[Any] | dict[str, Any] | None
     metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
     completed_at: datetime | None
     graded_at: datetime | None
@@ -164,30 +130,14 @@ class GradeOut(BaseModel):
 
 class GradeUpdate(BaseModel):
     assignment_id: uuid.UUID | None = None
-    project_id: uuid.UUID | None = None
     scored_by: str | None = None
     score_numeric: float | None = None
     score_max: float | None = None
     letter: str | None = None
     feedback: str | None = None
-    rubric_scores_json: dict[str, Any] | None = None
-    evidence_refs_json: list[Any] | dict[str, Any] | None = None
     completed_at: datetime | None = None
     graded_at: datetime | None = None
     metadata: dict[str, Any] | None = None
-
-
-class SkillObservationCreate(BaseModel):
-    skill_key: str = Field(..., min_length=1, max_length=128)
-    scale_min: float | None = None
-    scale_max: float | None = None
-    value_numeric: float | None = None
-    value_text: str | None = None
-    source: str = "system"
-    confidence: float | None = Field(None, ge=0, le=1)
-    context_assignment_id: uuid.UUID | None = None
-    observed_on: date | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class DictationSessionDraftRequest(BaseModel):
@@ -251,21 +201,3 @@ class DictationQueueSyncResponse(BaseModel):
     item_count: int
     message: str
     due_at: datetime | None = None
-
-
-class SkillObservationOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id: uuid.UUID
-    student_id: uuid.UUID
-    skill_key: str
-    scale_min: float | None
-    scale_max: float | None
-    value_numeric: float | None
-    value_text: str | None
-    source: str
-    confidence: float | None
-    context_assignment_id: uuid.UUID | None
-    observed_on: date | None
-    metadata: dict[str, Any] = Field(validation_alias="metadata_", serialization_alias="metadata")
-    created_at: datetime

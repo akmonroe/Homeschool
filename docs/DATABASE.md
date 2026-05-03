@@ -8,7 +8,7 @@ Reference for **where data lives**, **relationships**, and **how to extend** lan
 
 | Store | Engine | Role |
 |-------|--------|------|
-| **Core platform** | PostgreSQL, schema **`core`** | Students, projects, suite-level assignments, grades, skills, **dictionary (lexemes)**, **dictation word queue**, **dictation attempt history**. |
+| **Core platform** | PostgreSQL, schema **`core`** | Students, suite-level assignments, grades, **dictionary (lexemes)**, **dictation word queue**, **dictation attempt history**, science experiments. |
 | **Dictation profiles** | SQLite (`dictation.db`) | **Only** the lightweight **`users`** table: integer `id` for the student picker, display `name`, `difficulty_level`, link `core_student_id` → Postgres `core.students.id`. |
 
 **Rule of thumb:** Anything about **which words exist** and **which words are assigned to whom** is in **Postgres**. SQLite answers **“which dictation profile id is playing?”** only.
@@ -20,8 +20,11 @@ Reference for **where data lives**, **relationships**, and **how to extend** lan
 ### 2.1 Migrations
 
 - **Alembic** in `alembic/versions/`.
-- **`0001_core`:** students, projects, assignments, assignment_items, grades, skill_observations.
+- **`0001_core`:** students, assignments, assignment_items, grades (initial shape).
 - **`0002_dictation_lexemes`:** `lexemes`, `dictation_assignments`, `dictation_attempts`.
+- **`0003_assignment_schedule`:** `available_from`, due indexes, grade timestamps.
+- **`0004_science_experiments`:** `science_experiment_templates`, `science_experiment_runs`, `science_media` (and seed template rows).
+- **`0005_family_simplify_core`:** drops **`projects`**, **`skill_observations`**, `assignments.project_id` / `rubric_json`, `grades.project_id` / rubric/evidence JSON columns (small-household build).
 
 ### 2.2 `core.lexemes` — canonical dictionary + dynamic language fields
 
@@ -90,7 +93,7 @@ Use **`GET /core/students/{id}/assignments?active=true`** for rows whose window 
 
 Dictation AI commits create an **`assignments`** row with **`available_from`** set to “now” and **`due_at`** seven days later by default (adjust via **`PATCH`**).
 
-**Delete:** `DELETE /core/students/{id}/assignments/{assignment_id}` removes the assignment; **`assignment_items`** cascade; **`grades.assignment_id`** and **`skill_observations.context_assignment_id`** are set to **NULL** (grade rows remain).
+**Delete:** `DELETE /core/students/{id}/assignments/{assignment_id}` removes the assignment; **`assignment_items`** cascade; **`grades.assignment_id`** is set to **NULL** (grade rows remain).
 
 ### 2.6 `core.grades` — scores linked to assignments
 
@@ -104,11 +107,17 @@ Dictation AI commits create an **`assignments`** row with **`available_from`** s
 
 ### 2.7 Other `core` tables
 
-See `app/core/models.py` and migrations for **`assignment_items`**, **`skill_observations`**, etc.
+See `app/core/models.py` and migrations for **`assignment_items`** and related FKs.
 
-Suite-level **assignments** (above) remain separate from **`dictation_assignments`** (per-word queue for the dictation game).
+Suite-level **assignments** remain separate from **`dictation_assignments`** (per-word queue for the dictation game).
 
----
+### 2.8 Science app — `science_experiment_templates`, `science_experiment_runs`, `science_media`
+
+- **`science_experiment_templates`:** optional library of published experiments (title, summary, `subject_tags` JSON array, `procedure_outline`). Seeded with two examples in migration `0004`.
+- **`science_experiment_runs`:** one student’s lab write-up. **`source`** is `assigned` (linked to **`core.assignments`** with **`app_slug` = `science`**) or `self_chosen` (from a template) or `ad_hoc`. **`observations`** is a JSONB array of `{ "at", "text" }` (and can hold richer objects later). Optional **`assignment_id`**, **`template_id`**.
+- **`science_media`:** metadata for a file on disk: **`rel_path`** relative to **`SCIENCE_DATA_DIR`**, **`kind`** `image` or `video`. Bytes are **not** stored in Postgres.
+
+The Science UI lists assignments where **`app_slug` = `science`**. Create those via the core assignments API or admin.
 
 ## 3. SQLite — `dictation.db`
 
@@ -192,4 +201,4 @@ docker compose exec app sh -c \
 - **Backups:** Postgres volume + `dictation-data` (SQLite) for profile ids.
 - **Migrating old SQLite `words`:** one-off script: read old DB → `INSERT`/`upsert` into `core.lexemes` and rebuild `dictation_assignments` from old `user_words` if you still have a legacy file.
 
-**Last reviewed:** migration **`0003_assignment_schedule`** (`available_from`, grade **`completed_at`** / **`graded_at`**); see [ARCHITECTURE.md](./ARCHITECTURE.md).
+**Last reviewed:** migration **`0005_family_simplify_core`** (drops projects/skills/rubric columns); see [ARCHITECTURE.md](./ARCHITECTURE.md).
