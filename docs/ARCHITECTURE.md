@@ -72,7 +72,7 @@ Implementation: `app/apps/dictation/dictation_app.py` (cache + routes + Ollama),
 
 | Store | Technology | Contents |
 |-------|------------|----------|
-| **Core** | PostgreSQL, schema `core` | Students, lexemes, dictation queue/attempts, suite assignments/grades/skills |
+| **Core** | PostgreSQL, schema `core` | Students, lexemes, dictation queue/attempts, suite assignments/grades |
 | **Dictation profiles** | SQLite file on volume `dictation-data` | `users` only: display name, skill text, `core_student_id` |
 
 Details: [DATABASE.md](./DATABASE.md).
@@ -106,7 +106,7 @@ Bulk enrichment (etymology, phonetics, tricks) is **not** in the browser; use `s
 
 ## 6. Docker
 
-- **`docker-compose.yml`:** `postgres` + `app`; optional `ollama` profile.
+- **`docker-compose.yml`:** `postgres` + `app` only. Ollama runs on the **host** (default `OLLAMA_BASE_URL`); no bundled Ollama service.
 - **`docker/entrypoint.sh`:** Alembic `upgrade head`, then uvicorn.
 - **Volumes:** `postgres-data`, `dictation-data` (SQLite + TTS temp WAV paths under `/app/data`).
 

@@ -1,3 +1,5 @@
+# Default stack for a single family machine (~10–15 users): Postgres + app only.
+# Ollama: install on the host (recommended) and set OLLAMA_BASE_URL; do not add a compose service.
 services:
   postgres:
     image: postgres:16-alpine
@@ -40,18 +42,6 @@ services:
       postgres:
         condition: service_healthy
 
-  # Opt-in: avoids pulling the large Ollama image on every `docker compose up`.
-  # Start with: docker compose --profile ollama up -d
-  ollama:
-    profiles:
-      - ollama
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-
 volumes:
-  ollama-data:
   dictation-data:
   postgres-data:

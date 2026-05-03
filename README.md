@@ -46,21 +46,21 @@ Compose starts **Postgres 16** and sets **`DATABASE_URL`** for the app. On boot,
 **Alembic** runs `upgrade head` (see `docker/entrypoint.sh`) so the **`core`**
 schema is always present.
 
-- **Schema `core`**: shared across apps — students, projects, assignments
-  (with **assignment_items** for tall/step payloads), **grades**, and
-  **skill_observations** (time-series skill signals for humans or AI).
+- **Schema `core`**: shared across apps — students, assignments (with **assignment_items**), **grades**, dictation lexemes/queue, science experiment tables. (Large-scale extras such as projects, skill_observations, and rubric columns were removed for the small-household build; migration **`0005_family_simplify_core`**.)
+
 - **HTTP API**: under **`/core`** (see **`/docs`**). Examples:
   - `GET /core/students`, `POST /core/students`
   - `GET /core/students/{id}/assignments` — each assignment may include **`items`** (tall `assignment_items`, e.g. `spelling_word` + `payload_json.word` for dictation)
   - `POST .../assignments/{id}/items` — agent-friendly steps (`item_type` +
     `payload_json`)
-  - `GET/POST .../grades`, `PATCH .../grades/{grade_id}`, `GET/POST .../skills`
+  - `GET/POST .../grades`, `PATCH .../grades/{grade_id}`
   - **`POST .../dictation-session/commit`** assigns spelling words from admin; optional JSON **`due_at`** (omit for **7 days from commit**). Response echoes the effective **`due_at`**.
   - **`POST .../dictation-session/sync-assignment`** (optional **`due_at`**, optional **`title`**) creates or updates a single **`dictation`** suite assignment and **`items`**, listing **all** words currently in that student’s **`core.dictation_assignments`** practice queue. Use this when the dictation app shows words but **Assignments** is empty (or out of date).
   - Assignments support **`available_from`**, **`due_at`**, and `GET .../assignments?active=true`; **`PATCH .../assignments/{id}`** updates schedule fields; **`DELETE .../assignments/{id}`** removes the row (items cascade; grades’ `assignment_id` is set null).
 
-Use **`metadata`** JSON on rows for extensibility; use **`rubric_json`** /
-**`rubric_scores_json`** for structured AI or human scoring later.
+Use **`metadata`** JSON on rows for extensibility.
+
+**Docker (default):** `docker compose up` starts **Postgres + app** only (~10–15 users). Run **Ollama on the host** (see `OLLAMA_BASE_URL` / `host.docker.internal`); there is no bundled Ollama container.
 
 **Migrations** (from repo root, with sync driver for Alembic):
 
@@ -103,12 +103,8 @@ homeschooling apps with Ollama-backed AI and local text-to-speech support.
 
 - `postgres`: PostgreSQL for the shared **`core`** schema (port **5432**)
 - `app`: FastAPI app exposed at `http://localhost:4500`
-- `ollama` (optional): not started by default so Docker does not pull the large
-  Ollama image unless you ask for it. When enabled, set
-  `OLLAMA_BASE_URL=http://ollama:11434` (or rely on the in-network hostname
-  `ollama` if you only use the profile and remove the host override).
 
-### Run locally (app + host Ollama on port 11434)
+**Ollama** is not a Compose service: run it on the **host** (default `OLLAMA_BASE_URL=http://host.docker.internal:11434` in `docker-compose.yml`).
 
 By default the app container uses **`http://host.docker.internal:11434`**, with
 `extra_hosts: host.docker.internal:host-gateway`, so **Ollama on the host**
@@ -123,13 +119,6 @@ After **code or static file** changes, rebuild the `app` image so the container 
 
 ```bash
 docker compose build app && docker compose up -d
-```
-
-To **instead** run Ollama in Docker (pulls `ollama/ollama` the first time), use
-the profile and point at the compose service:
-
-```bash
-OLLAMA_BASE_URL=http://ollama:11434 docker compose --profile ollama up --build
 ```
 
 The API is available at:
